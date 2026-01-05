@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(cached.data);
     }
     console.log(`Analytics cache MISS for ${cacheKey}, fetching from WB API...`);
+    console.log(`Requested period: ${period} days, category: ${category || 'all'}`);
 
     try {
         // Calculate date range
@@ -59,12 +60,14 @@ export async function GET(request: NextRequest) {
         startDate.setDate(endDate.getDate() - period);
 
         const formatDate = (d: Date) => d.toISOString().split('T')[0];
+        // Statistics API requires RFC3339 format
+        const formatDateRFC = (d: Date) => d.toISOString();
 
         const dailyData: Map<string, DailyMetrics> = new Map();
 
         // Use Sales API - most reliable data source
         const salesResponse = await fetch(
-            `${STATISTICS_API}/api/v1/supplier/sales?dateFrom=${formatDate(startDate)}`,
+            `${STATISTICS_API}/api/v1/supplier/sales?dateFrom=${formatDateRFC(startDate)}`,
             {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -113,7 +116,7 @@ export async function GET(request: NextRequest) {
 
         // Fetch orders for order counts
         const ordersResponse = await fetch(
-            `${STATISTICS_API}/api/v1/supplier/orders?dateFrom=${formatDate(startDate)}`,
+            `${STATISTICS_API}/api/v1/supplier/orders?dateFrom=${formatDateRFC(startDate)}`,
             {
                 headers: {
                     'Authorization': `Bearer ${token}`,
