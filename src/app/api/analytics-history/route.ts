@@ -158,8 +158,13 @@ export async function GET(request: NextRequest) {
             console.log(`Orders API failed: ${ordersResponse.status}`);
         }
 
-        // Calculate derived metrics and sort by date
+        // Calculate derived metrics, filter by date range, and sort by date
+        const startDateStr = formatDate(startDate);
+        const endDateStr = formatDate(endDate);
+
         const result: DailyMetrics[] = Array.from(dailyData.values())
+            // Filter to only include dates within the requested period
+            .filter(day => day.date >= startDateStr && day.date <= endDateStr)
             .map(day => ({
                 ...day,
                 avgCheck: day.orderCount > 0 ? day.orderSum / day.orderCount : 0,
@@ -167,7 +172,7 @@ export async function GET(request: NextRequest) {
             }))
             .sort((a, b) => a.date.localeCompare(b.date));
 
-        console.log(`Aggregated ${result.length} days of data`);
+        console.log(`Filtered to ${result.length} days within period ${startDateStr} to ${endDateStr}`);
 
         // Calculate totals for the period
         const totals = result.reduce(

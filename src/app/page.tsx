@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import UserHeader from '@/components/auth/UserHeader';
-import AiInsightsPanel from '@/components/AiInsightsPanel';
+import { EnhancedAiPanel } from '@/components/ai';
 import SettingsPanel from '@/components/SettingsPanel';
 import AnalyticsChart from '@/components/AnalyticsChart';
 import PeriodSelector from '@/components/PeriodSelector';
@@ -1022,13 +1022,14 @@ export default function SvetoforDashboard() {
         />
       )}
 
-      {/* AI Insights Panel */}
-      <AiInsightsPanel
+      {/* Enhanced AI Panel */}
+      <EnhancedAiPanel
         isOpen={showAiPanel}
         onClose={() => setShowAiPanel(false)}
         category={selectedCategory}
         period={period}
         kpis={kpis}
+        allSKUs={allSKUs}
         clusters={data ? {
           OOS_NOW: data.data.OOS_NOW.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
           OOS_SOON: data.data.OOS_SOON.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
@@ -1039,7 +1040,7 @@ export default function SvetoforDashboard() {
           OVERSTOCK: data.data.OVERSTOCK.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
           ABOVE_MARKET: data.data.ABOVE_MARKET.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
         } : null}
-        onCreateTask={(skus, taskType) => {
+        onCreateTask={(skus, taskType, aiSuggestion) => {
           // Set selected SKUs for task creation
           setSelectedSKUs(new Set(skus.map(s => s.nmId)));
           setShowAiPanel(false);
