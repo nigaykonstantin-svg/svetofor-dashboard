@@ -42,7 +42,7 @@ export async function GET(request: Request) {
         // Parse period from query params
         const { searchParams } = new URL(request.url);
         const period = parseInt(searchParams.get('period') || '7');
-        const validPeriod = [7, 14, 30].includes(period) ? period : 7;
+        const validPeriod = Math.min(Math.max(period, 1), 180); // Accept 1-180 days
 
         // Calculate date range
         const dateFrom = new Date();
@@ -124,7 +124,7 @@ export async function GET(request: Request) {
         }
 
         for (const [nmId, count] of salesCountMap) {
-            velocityMap.set(nmId, count / 7); // продаж за 7 дней / 7 = в день
+            velocityMap.set(nmId, count / validPeriod); // Use actual period
         }
 
         console.log(`Velocity calculated for ${velocityMap.size} SKUs`);
