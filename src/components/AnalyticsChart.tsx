@@ -32,13 +32,8 @@ interface DailyMetrics {
 
 interface AnalyticsChartProps {
     category?: string;
+    period: number; // Now required from parent
 }
-
-const PERIODS = [
-    { value: 90, label: '90 дней' },
-    { value: 180, label: '180 дней' },
-    { value: 360, label: '360 дней' },
-];
 
 const METRICS = {
     orderSum: { label: '💰 Выручка', color: '#10b981', unit: '₽', axis: 'left' },
@@ -55,8 +50,7 @@ const METRICS = {
 
 type MetricKey = keyof typeof METRICS;
 
-export default function AnalyticsChart({ category }: AnalyticsChartProps) {
-    const [period, setPeriod] = useState(90);
+export default function AnalyticsChart({ category, period }: AnalyticsChartProps) {
     const [data, setData] = useState<DailyMetrics[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -168,23 +162,10 @@ export default function AnalyticsChart({ category }: AnalyticsChartProps) {
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                     📈 Динамика показателей
+                    <span className="text-sm font-normal text-slate-500">
+                        (период: {period} дней)
+                    </span>
                 </h2>
-
-                {/* Period Selector */}
-                <div className="flex gap-2">
-                    {PERIODS.map((p) => (
-                        <button
-                            key={p.value}
-                            onClick={() => setPeriod(p.value)}
-                            className={`px-4 py-2 rounded-lg transition text-sm font-medium ${period === p.value
-                                    ? 'bg-purple-600 text-white'
-                                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                }`}
-                        >
-                            {p.label}
-                        </button>
-                    ))}
-                </div>
             </div>
 
             {/* Totals Summary */}
@@ -234,8 +215,8 @@ export default function AnalyticsChart({ category }: AnalyticsChartProps) {
                             key={key}
                             onClick={() => toggleMetric(key)}
                             className={`px-3 py-1.5 rounded-full text-sm transition flex items-center gap-1 ${isSelected
-                                    ? 'text-white shadow-lg'
-                                    : 'bg-slate-800 text-slate-500 hover:text-slate-300'
+                                ? 'text-white shadow-lg'
+                                : 'bg-slate-800 text-slate-500 hover:text-slate-300'
                                 }`}
                             style={{
                                 backgroundColor: isSelected ? metric.color : undefined,

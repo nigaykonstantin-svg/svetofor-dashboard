@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// WB Analytics API for historical data
-const WB_API_BASE = 'https://seller-analytics-api.wildberries.ru';
+// WB APIs
+const STATISTICS_API = 'https://statistics-api.wildberries.ru';
 
-// Server-side cache for historical data (doesn't change often)
+// Server-side cache for historical data
 interface CacheEntry {
     data: any;
     timestamp: number;
 }
 
 const analyticsCache = new Map<string, CacheEntry>();
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour for historical data
+const CACHE_TTL = 30 * 60 * 1000; // 30 min for historical data
 
 function getCacheKey(period: number, category: string): string {
     const today = new Date().toISOString().split('T')[0];
@@ -19,27 +19,23 @@ function getCacheKey(period: number, category: string): string {
 
 interface DailyMetrics {
     date: string;
-    // Revenue & Orders
     orderSum: number;
     orderCount: number;
     avgCheck: number;
-    // Funnel
     openCount: number;
     cartCount: number;
     buyoutCount: number;
     buyoutSum: number;
-    // Conversions
-    crCart: number;     // % cart/views
-    crOrder: number;    // % orders/cart
+    crCart: number;
+    crOrder: number;
     buyoutPercent: number;
-    // Advertising
     advertSpend: number;
-    drr: number;        // % spend/revenue
+    drr: number;
 }
 
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
-    const period = parseInt(searchParams.get('period') || '90');
+    const period = Math.min(parseInt(searchParams.get('period') || '90'), 365);
     const category = searchParams.get('category') || '';
 
     const token = process.env.WB_API_TOKEN;
@@ -64,121 +60,117 @@ export async function GET(request: NextRequest) {
 
         const formatDate = (d: Date) => d.toISOString().split('T')[0];
 
-        // Fetch funnel data from WB
-        const funnelResponse = await fetch(
-            `${WB_API_BASE}/api/v2/nm-report/detail/history`,
+        const dailyData: Map<string, DailyMetrics> = new Map();
+
+        // Use Sales API - most reliable data source
+        const salesResponse = await fetch(
+            `${STATISTICS_API}/api/v1/supplier/sales?dateFrom=${formatDate(startDate)}`,
             {
-                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    nmIDs: [], // Empty = all products
-                    period: {
-                        begin: formatDate(startDate),
-                        end: formatDate(endDate),
-                    },
-                    aggregationLevel: 'day',
-                    timezone: 'Europe/Moscow',
-                }),
             }
         );
 
-        let funnelData: Record<string, DailyMetrics> = {};
+        if (salesResponse.ok) {
+            const salesData = await salesResponse.json();
+            console.log(`Sales API returned ${salesData.length} records`);
 
-        if (funnelResponse.ok) {
-            const result = await funnelResponse.json();
+            // Aggregate sales by day
+            for (const sale of salesData) {
+                const date = sale.date?.split('T')[0];
+                if (!date) continue;
 
-            // Aggregate by day
-            if (result.data) {
-                for (const item of result.data) {
-                    for (const history of item.history || []) {
-                        const date = history.dt?.split('T')[0];
-                        if (!date) continue;
+                if (!dailyData.has(date)) {
+                    dailyData.set(date, {
+                        date,
+                        orderSum: 0,
+                        orderCount: 0,
+                        avgCheck: 0,
+                        openCount: 0,
+                        cartCount: 0,
+                        buyoutCount: 0,
+                        buyoutSum: 0,
+                        crCart: 0,
+                        crOrder: 0,
+                        buyoutPercent: 0,
+                        advertSpend: 0,
+                        drr: 0,
+                    });
+                }
 
-                        if (!funnelData[date]) {
-                            funnelData[date] = {
-                                date,
-                                orderSum: 0,
-                                orderCount: 0,
-                                avgCheck: 0,
-                                openCount: 0,
-                                cartCount: 0,
-                                buyoutCount: 0,
-                                buyoutSum: 0,
-                                crCart: 0,
-                                crOrder: 0,
-                                buyoutPercent: 0,
-                                advertSpend: 0,
-                                drr: 0,
-                            };
-                        }
-
-                        const day = funnelData[date];
-                        day.openCount += history.openCardCount || 0;
-                        day.cartCount += history.addToCartCount || 0;
-                        day.orderCount += history.ordersCount || 0;
-                        day.orderSum += history.ordersSumRub || 0;
-                        day.buyoutCount += history.buyoutsCount || 0;
-                        day.buyoutSum += history.buyoutsSumRub || 0;
-                    }
+                const day = dailyData.get(date)!;
+                // forSale = выкуп (1), return = возврат (-1) 
+                const isSale = sale.saleID?.startsWith('S');
+                if (isSale) {
+                    day.buyoutCount += 1;
+                    day.buyoutSum += sale.finishedPrice || sale.priceWithDisc || 0;
                 }
             }
+        } else {
+            console.log(`Sales API failed: ${salesResponse.status}`);
+        }
+
+        // Fetch orders for order counts
+        const ordersResponse = await fetch(
+            `${STATISTICS_API}/api/v1/supplier/orders?dateFrom=${formatDate(startDate)}`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            }
+        );
+
+        if (ordersResponse.ok) {
+            const ordersData = await ordersResponse.json();
+            console.log(`Orders API returned ${ordersData.length} records`);
+
+            // Aggregate orders by day
+            for (const order of ordersData) {
+                const date = order.date?.split('T')[0];
+                if (!date) continue;
+
+                if (!dailyData.has(date)) {
+                    dailyData.set(date, {
+                        date,
+                        orderSum: 0,
+                        orderCount: 0,
+                        avgCheck: 0,
+                        openCount: 0,
+                        cartCount: 0,
+                        buyoutCount: 0,
+                        buyoutSum: 0,
+                        crCart: 0,
+                        crOrder: 0,
+                        buyoutPercent: 0,
+                        advertSpend: 0,
+                        drr: 0,
+                    });
+                }
+
+                const day = dailyData.get(date)!;
+                if (!order.isCancel) {
+                    day.orderCount += 1;
+                    day.orderSum += order.finishedPrice || order.priceWithDisc || 0;
+                }
+            }
+        } else {
+            console.log(`Orders API failed: ${ordersResponse.status}`);
         }
 
         // Calculate derived metrics and sort by date
-        const dailyData: DailyMetrics[] = Object.values(funnelData)
+        const result: DailyMetrics[] = Array.from(dailyData.values())
             .map(day => ({
                 ...day,
                 avgCheck: day.orderCount > 0 ? day.orderSum / day.orderCount : 0,
-                crCart: day.openCount > 0 ? (day.cartCount / day.openCount) * 100 : 0,
-                crOrder: day.cartCount > 0 ? (day.orderCount / day.cartCount) * 100 : 0,
                 buyoutPercent: day.orderCount > 0 ? (day.buyoutCount / day.orderCount) * 100 : 0,
-                // DRR will be added from advert API
             }))
             .sort((a, b) => a.date.localeCompare(b.date));
 
-        // Try to fetch advertising data for DRR
-        try {
-            const advertResponse = await fetch(
-                'https://advert-api.wildberries.ru/adv/v2/fullstats',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify([]),
-                }
-            );
-
-            if (advertResponse.ok) {
-                const advertData = await advertResponse.json();
-                // Aggregate advert spend by day
-                const dailySpend: Record<string, number> = {};
-
-                for (const campaign of advertData || []) {
-                    for (const day of campaign.days || []) {
-                        const date = day.date?.split('T')[0];
-                        if (date) {
-                            dailySpend[date] = (dailySpend[date] || 0) + (day.sum || 0);
-                        }
-                    }
-                }
-
-                // Add to daily data
-                for (const day of dailyData) {
-                    day.advertSpend = dailySpend[day.date] || 0;
-                    day.drr = day.orderSum > 0 ? (day.advertSpend / day.orderSum) * 100 : 0;
-                }
-            }
-        } catch (e) {
-            console.log('Advert data fetch failed, continuing without DRR');
-        }
+        console.log(`Aggregated ${result.length} days of data`);
 
         // Calculate totals for the period
-        const totals = dailyData.reduce(
+        const totals = result.reduce(
             (acc, day) => ({
                 orderSum: acc.orderSum + day.orderSum,
                 orderCount: acc.orderCount + day.orderCount,
@@ -196,7 +188,7 @@ export async function GET(request: NextRequest) {
             period,
             startDate: formatDate(startDate),
             endDate: formatDate(endDate),
-            daysCount: dailyData.length,
+            daysCount: result.length,
             totals: {
                 ...totals,
                 avgCheck: totals.orderCount > 0 ? totals.orderSum / totals.orderCount : 0,
@@ -205,7 +197,7 @@ export async function GET(request: NextRequest) {
                 buyoutPercent: totals.orderCount > 0 ? (totals.buyoutCount / totals.orderCount) * 100 : 0,
                 drr: totals.orderSum > 0 ? (totals.advertSpend / totals.orderSum) * 100 : 0,
             },
-            data: dailyData,
+            data: result,
         };
 
         // Save to cache

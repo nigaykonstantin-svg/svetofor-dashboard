@@ -19,8 +19,8 @@ export default function SvetoforDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortField, setSortField] = useState<SortField>('stockCoverDays');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [sortField, setSortField] = useState<SortField>('orderSum');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [showAllSKUs, setShowAllSKUs] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showColumns, setShowColumns] = useState(false);
@@ -497,7 +497,7 @@ export default function SvetoforDashboard() {
 
         {/* Analytics Chart */}
         <div className="mb-6">
-          <AnalyticsChart category={selectedCategory} />
+          <AnalyticsChart category={selectedCategory} period={period} />
         </div>
 
         {/* Signal Clusters */}
@@ -508,6 +508,36 @@ export default function SvetoforDashboard() {
           onClusterSelect={(cluster) => { setSelectedCluster(cluster); setShowAllSKUs(false); }}
           onShowAllToggle={() => { setShowAllSKUs(!showAllSKUs); setSelectedCluster(null); }}
         />
+
+        {/* Task Control Panel - for admins/category managers */}
+        {canSeeTaskControl && userTasks.length > 0 && (
+          <div className="mb-6">
+            <TaskControlPanel
+              tasks={userTasks}
+              onFilterByStatus={() => { }}
+              onFilterByAssignee={() => { }}
+              onViewAllTasks={() => router.push('/tasks')}
+            />
+          </div>
+        )}
+
+        {/* Quick Tasks Link */}
+        {user && (
+          <div className="mb-4 flex justify-end">
+            <button
+              onClick={() => router.push('/tasks')}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition flex items-center gap-2 text-sm"
+            >
+              <span>📋</span>
+              {canSeeTaskControl ? 'Управление задачами' : 'Мои задачи'}
+              {taskStats.total > 0 && (
+                <span className="bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {taskStats.total - taskStats.done}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Search and Filters */}
         {(selectedCluster || showAllSKUs) && (
@@ -973,104 +1003,25 @@ export default function SvetoforDashboard() {
         )}
       </main>
 
-      {/* Task Creation Modal */}
-      {showTaskModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 rounded-xl w-full max-w-lg border border-slate-700">
-            <div className="p-6 border-b border-slate-700">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <span>📤</span> Создать задачу
-              </h2>
-              <p className="text-slate-400 text-sm mt-1">
-                Выбрано товаров: <span className="text-white font-semibold">{selectedSKUs.size}</span>
-              </p>
-            </div>
+      {/* Task Creation Modal - using new modular component */}
+      <TaskModal
+        isOpen={showTaskModal}
+        onClose={() => setShowTaskModal(false)}
+        selectedSKUs={selectedSKUsForTask}
+        onCreateTask={handleCreateTask}
+      />
 
-            <div className="p-6 space-y-4">
-              {/* Task Type */}
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">Тип задачи</label>
-                <select
-                  value={taskForm.type}
-                  onChange={(e) => setTaskForm({ ...taskForm, type: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500"
-                >
-                  {Object.entries(TASK_TYPES).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Assignee */}
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">Исполнитель</label>
-                <input
-                  type="text"
-                  placeholder="Имя сотрудника..."
-                  value={taskForm.assignee}
-                  onChange={(e) => setTaskForm({ ...taskForm, assignee: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              {/* Deadline */}
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">Срок выполнения</label>
-                <input
-                  type="date"
-                  value={taskForm.deadline}
-                  onChange={(e) => setTaskForm({ ...taskForm, deadline: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              {/* Comment */}
-              <div>
-                <label className="block text-sm text-slate-400 mb-2">Комментарий</label>
-                <textarea
-                  placeholder="Инструкции для исполнителя..."
-                  value={taskForm.comment}
-                  onChange={(e) => setTaskForm({ ...taskForm, comment: e.target.value })}
-                  rows={3}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500 resize-none"
-                />
-              </div>
-
-              {/* Selected SKUs preview */}
-              <div className="bg-slate-800/50 rounded-lg p-3 max-h-32 overflow-y-auto">
-                <div className="text-xs text-slate-500 mb-2">Товары в задаче:</div>
-                <div className="space-y-1">
-                  {filteredSKUs.filter(s => selectedSKUs.has(s.nmId)).slice(0, 5).map(s => (
-                    <div key={s.nmId} className="text-sm truncate">
-                      <span className="text-slate-500">{s.sku}</span>
-                      <span className="ml-2">{s.title}</span>
-                    </div>
-                  ))}
-                  {selectedSKUs.size > 5 && (
-                    <div className="text-xs text-slate-500">...и ещё {selectedSKUs.size - 5} товаров</div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-slate-700 flex gap-3 justify-end">
-              <button
-                onClick={() => setShowTaskModal(false)}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={createTask}
-                disabled={!taskForm.assignee}
-                className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Создать задачу
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Task Detail Modal */}
+      {selectedTaskForDetail && (
+        <TaskDetailModal
+          task={selectedTaskForDetail}
+          isOpen={true}
+          onClose={() => setSelectedTaskForDetail(null)}
+          onUpdateStatus={handleUpdateTaskStatus}
+          onDelete={deleteTask}
+        />
       )}
+
       {/* AI Insights Panel */}
       <AiInsightsPanel
         isOpen={showAiPanel}
@@ -1091,7 +1042,6 @@ export default function SvetoforDashboard() {
         onCreateTask={(skus, taskType) => {
           // Set selected SKUs for task creation
           setSelectedSKUs(new Set(skus.map(s => s.nmId)));
-          setTaskForm({ ...taskForm, type: taskType });
           setShowAiPanel(false);
           setShowTaskModal(true);
         }}
