@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import UserHeader from '@/components/auth/UserHeader';
 import AiInsightsPanel from '@/components/AiInsightsPanel';
 import SettingsPanel from '@/components/SettingsPanel';
@@ -8,6 +9,8 @@ import AnalyticsChart from '@/components/AnalyticsChart';
 import PeriodSelector from '@/components/PeriodSelector';
 import DeltaBadge from '@/components/DeltaBadge';
 import { KPICards, SignalClusters, CategoryTabs, SKUTableSection, CLUSTER_CONFIG } from '@/components/dashboard';
+import { TaskModal, TaskControlPanel, TaskDetailModal, TaskList, useTasks, Task, TaskStatus, TaskSKU } from '@/components/tasks';
+import { useAuth } from '@/lib/useAuth';
 import { SKUData, SvetoforData, SortField, SortDirection, formatMoney } from '@/types';
 
 export default function SvetoforDashboard() {
@@ -95,43 +98,33 @@ export default function SvetoforDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
 
-  // Task management
+  // Task management - using new modular system
   const [selectedSKUs, setSelectedSKUs] = useState<Set<number>>(new Set());
   const [showTaskModal, setShowTaskModal] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [taskForm, setTaskForm] = useState({
-    type: 'optimize',
-    assignee: '',
-    deadline: '',
-    comment: '',
-  });
+  const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
+  const { user, isSuperAdmin, isCategoryManager } = useAuth();
+  const router = useRouter();
 
-  // Task interface
-  interface Task {
-    id: string;
-    skus: SKUData[];
-    type: string;
-    assignee: string;
-    deadline: string;
-    comment: string;
-    status: 'new' | 'in_progress' | 'done';
-    createdAt: string;
-  }
+  // Use the new tasks hook
+  const {
+    tasks,
+    addTask,
+    updateTaskStatus,
+    deleteTask,
+    getTasksForUser,
+    getTaskStats
+  } = useTasks();
 
-  // Load tasks from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('svetofor_tasks');
-    if (saved) {
-      setTasks(JSON.parse(saved));
-    }
-  }, []);
+  // Get tasks visible to current user
+  const userTasks = useMemo(() => {
+    if (!user) return [];
+    return getTasksForUser(user.id, user.role, user.categoryId);
+  }, [user, tasks, getTasksForUser]);
 
-  // Save tasks to localStorage
-  useEffect(() => {
-    if (tasks.length > 0) {
-      localStorage.setItem('svetofor_tasks', JSON.stringify(tasks));
-    }
-  }, [tasks]);
+  const taskStats = useMemo(() => getTaskStats(userTasks), [userTasks, getTaskStats]);
+
+  // Can current user see task control panel?
+  const canSeeTaskControl = isSuperAdmin || isCategoryManager;
 
   useEffect(() => {
     fetchData();
@@ -294,38 +287,23 @@ export default function SvetoforDashboard() {
     URL.revokeObjectURL(url);
   };
 
-  // Task type labels
-  const TASK_TYPES = {
-    optimize: '🎯 Оптимизировать карточку',
-    price_down: '📉 Снизить цену',
-    price_up: '📈 Повысить цену',
-    restock: '📦 Заказать поставку',
-    ads: '📢 Проверить рекламу',
-    photo: '📷 Обновить фото',
-    other: '📝 Другое',
-  };
-
-  // Create task
-  const createTask = () => {
-    if (selectedSKUs.size === 0) return;
-
-    const selectedItems = filteredSKUs.filter(s => selectedSKUs.has(s.nmId));
-    const newTask: Task = {
-      id: Date.now().toString(),
-      skus: selectedItems,
-      type: taskForm.type,
-      assignee: taskForm.assignee,
-      deadline: taskForm.deadline,
-      comment: taskForm.comment,
-      status: 'new',
-      createdAt: new Date().toISOString(),
-    };
-
-    setTasks([...tasks, newTask]);
+  // Handle task creation from new TaskModal
+  const handleCreateTask = (task: Task) => {
+    addTask(task);
     setSelectedSKUs(new Set());
-    setShowTaskModal(false);
-    setTaskForm({ type: 'optimize', assignee: '', deadline: '', comment: '' });
   };
+
+  // Handle task status update
+  const handleUpdateTaskStatus = (taskId: string, status: TaskStatus, completionComment?: string) => {
+    updateTaskStatus(taskId, status, user?.id, user?.name, completionComment);
+  };
+
+  // Get selected SKUs for task creation
+  const selectedSKUsForTask: TaskSKU[] = useMemo(() => {
+    return filteredSKUs
+      .filter(s => selectedSKUs.has(s.nmId))
+      .map(s => ({ nmId: s.nmId, sku: s.sku, title: s.title }));
+  }, [filteredSKUs, selectedSKUs]);
 
   // Toggle SKU selection
   const toggleSKU = (nmId: number) => {
