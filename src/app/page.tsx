@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import UserHeader from '@/components/auth/UserHeader';
 import AiInsightsPanel from '@/components/AiInsightsPanel';
 import SettingsPanel from '@/components/SettingsPanel';
+import PeriodSelector from '@/components/PeriodSelector';
 
 interface Signal {
   type: string;
@@ -161,8 +162,10 @@ export default function SvetoforDashboard() {
     signal: true,
   });
 
-  // Period selector
-  const [period, setPeriod] = useState(7);
+  // Period selector - default to yesterday (1 day)
+  const [period, setPeriod] = useState(1);
+  const [comparisonEnabled, setComparisonEnabled] = useState(false);
+  const [customDateRange, setCustomDateRange] = useState<{ start: string; end: string } | undefined>(undefined);
 
   // Category filter
   const CATEGORIES = ['Все', 'Лицо', 'Тело', 'Макияж', 'Волосы'];
@@ -547,26 +550,19 @@ export default function SvetoforDashboard() {
               MIXIT • {data?.totalSKUs.toLocaleString()} SKU • {new Date(data?.timestamp || '').toLocaleString('ru-RU')}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {/* Period Selector */}
-            <div className="flex bg-slate-800 rounded-lg p-1">
-              {[
-                { value: 7, label: '7 дней' },
-                { value: 14, label: '14 дней' },
-                { value: 30, label: '30 дней' },
-              ].map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => setPeriod(p.value)}
-                  className={`px-3 py-1 rounded text-sm transition ${period === p.value
-                    ? 'bg-emerald-600 text-white'
-                    : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
+            <PeriodSelector
+              period={period}
+              onPeriodChange={(p) => {
+                setPeriod(p);
+                setCustomDateRange(undefined);
+              }}
+              dateRange={customDateRange}
+              onDateRangeChange={setCustomDateRange}
+              comparisonEnabled={comparisonEnabled}
+              onComparisonToggle={setComparisonEnabled}
+            />
             <button
               onClick={fetchData}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition flex items-center gap-2"
