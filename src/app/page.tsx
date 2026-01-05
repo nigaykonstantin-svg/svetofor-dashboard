@@ -10,8 +10,12 @@ import PeriodSelector from '@/components/PeriodSelector';
 import DeltaBadge from '@/components/DeltaBadge';
 import { KPICards, SignalClusters, CategoryTabs, SKUTableSection, CLUSTER_CONFIG } from '@/components/dashboard';
 import { TaskModal, TaskControlPanel, TaskDetailModal, TaskList, useTasks, Task, TaskStatus, TaskSKU } from '@/components/tasks';
+import { GoalsSummaryBar, GoalsManagementModal } from '@/components/goals';
 import { useAuth } from '@/lib/useAuth';
 import { SKUData, SvetoforData, SortField, SortDirection, formatMoney } from '@/types';
+import { CategoryGoal, GoalProgress, getCurrentPeriod } from '@/types/goal-types';
+import { calculateAllGoalsProgress, calculateCategorySales } from '@/lib/goals-utils';
+import { Category, canViewAllCategories, canCreateTasks } from '@/lib/auth-types';
 
 export default function SvetoforDashboard() {
   const [data, setData] = useState<SvetoforData | null>(null);
@@ -94,6 +98,11 @@ export default function SvetoforDashboard() {
   // Settings panel
   const [showSettings, setShowSettings] = useState(false);
 
+  // Goals module state
+  const [goals, setGoals] = useState<CategoryGoal[]>([]);
+  const [goalsLoading, setGoalsLoading] = useState(false);
+  const [showGoalsModal, setShowGoalsModal] = useState(false);
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
@@ -128,7 +137,25 @@ export default function SvetoforDashboard() {
 
   useEffect(() => {
     fetchData();
+    fetchGoals();
   }, [period]);
+
+  // Fetch goals
+  async function fetchGoals() {
+    try {
+      setGoalsLoading(true);
+      const currentPeriod = getCurrentPeriod();
+      const res = await fetch(`/api/goals?month=${currentPeriod.month}&year=${currentPeriod.year}`);
+      const data = await res.json();
+      if (data.success) {
+        setGoals(data.goals);
+      }
+    } catch (err) {
+      console.error('Failed to fetch goals:', err);
+    } finally {
+      setGoalsLoading(false);
+    }
+  }
 
   async function fetchData() {
     try {
@@ -403,6 +430,47 @@ export default function SvetoforDashboard() {
 
     return { totalOrderSum, totalOrders, avgCheck, avgDRR, skuCount };
   }, [data, allSKUs, period, selectedCategory]);
+
+  // Calculate current goal progress for selected category
+  const currentGoalProgress = useMemo((): GoalProgress | null => {
+    if (selectedCategory === 'Все' || goals.length === 0 || allSKUs.length === 0) {
+      return null;
+    }
+
+    const categoryMap: Record<string, Category> = {
+      'Лицо': 'face',
+      'Тело': 'body',
+      'Макияж': 'makeup',
+      'Волосы': 'hair',
+    };
+
+    const categoryId = categoryMap[selectedCategory];
+    if (!categoryId) return null;
+
+    const goalsProgress = calculateAllGoalsProgress(goals, allSKUs, getCurrentPeriod());
+    return goalsProgress.find(p => p.categoryId === categoryId) || null;
+  }, [selectedCategory, goals, allSKUs]);
+
+  // Handle saving goals
+  const handleSaveGoals = async (updates: { categoryId: Category; targetAmount: number }[]) => {
+    const response = await fetch('/api/goals', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        updates: updates.map(u => ({ ...u, period: getCurrentPeriod() })),
+        userId: user?.id,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to save');
+    }
+
+    // Refresh goals
+    fetchGoals();
+  };
 
   if (loading) {
     return (

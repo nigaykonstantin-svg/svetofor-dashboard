@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// WB APIs
-const STATISTICS_API = 'https://statistics-api.wildberries.ru';
-
 // Server-side cache for historical data
 interface CacheEntry {
     data: any;
@@ -39,6 +36,9 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category') || '';
 
     const token = process.env.WB_API_TOKEN;
+    // Fallback to hardcoded URL if env not set (for Vercel compatibility)
+    const analyticsApiBase = process.env.WB_ANALYTICS_API || 'https://seller-analytics-api.wildberries.ru';
+
     if (!token) {
         return NextResponse.json({ success: false, error: 'WB_API_TOKEN not configured' }, { status: 500 });
     }
@@ -51,7 +51,6 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(cached.data);
     }
     console.log(`Analytics cache MISS for ${cacheKey}, fetching from WB API...`);
-    console.log(`Requested period: ${period} days, category: ${category || 'all'}`);
 
     try {
         // Calculate date range
@@ -60,122 +59,85 @@ export async function GET(request: NextRequest) {
         startDate.setDate(endDate.getDate() - period);
 
         const formatDate = (d: Date) => d.toISOString().split('T')[0];
-        // Statistics API requires RFC3339 format
-        const formatDateRFC = (d: Date) => d.toISOString();
+
+        // Use Analytics API (nm-report/detail/history) - more reliable data
+        const funnelResponse = await fetch(
+            `${analyticsApiBase}/api/v2/nm-report/detail/history`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': token,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    nmIDs: [], // Empty = all products
+                    period: {
+                        begin: formatDate(startDate),
+                        end: formatDate(endDate),
+                    },
+                    aggregationLevel: 'day',
+                    timezone: 'Europe/Moscow',
+                }),
+            }
+        );
 
         const dailyData: Map<string, DailyMetrics> = new Map();
 
-        // Use Sales API - most reliable data source
-        const salesResponse = await fetch(
-            `${STATISTICS_API}/api/v1/supplier/sales?dateFrom=${formatDateRFC(startDate)}`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-            }
-        );
+        if (funnelResponse.ok) {
+            const result = await funnelResponse.json();
+            console.log(`Analytics API returned data for ${result.data?.length || 0} products`);
 
-        if (salesResponse.ok) {
-            const salesData = await salesResponse.json();
-            console.log(`Sales API returned ${salesData.length} records`);
+            // Aggregate by day
+            if (result.data) {
+                for (const item of result.data) {
+                    for (const history of item.history || []) {
+                        const date = history.dt?.split('T')[0];
+                        if (!date) continue;
 
-            // Aggregate sales by day
-            for (const sale of salesData) {
-                const date = sale.date?.split('T')[0];
-                if (!date) continue;
+                        if (!dailyData.has(date)) {
+                            dailyData.set(date, {
+                                date,
+                                orderSum: 0,
+                                orderCount: 0,
+                                avgCheck: 0,
+                                openCount: 0,
+                                cartCount: 0,
+                                buyoutCount: 0,
+                                buyoutSum: 0,
+                                crCart: 0,
+                                crOrder: 0,
+                                buyoutPercent: 0,
+                                advertSpend: 0,
+                                drr: 0,
+                            });
+                        }
 
-                if (!dailyData.has(date)) {
-                    dailyData.set(date, {
-                        date,
-                        orderSum: 0,
-                        orderCount: 0,
-                        avgCheck: 0,
-                        openCount: 0,
-                        cartCount: 0,
-                        buyoutCount: 0,
-                        buyoutSum: 0,
-                        crCart: 0,
-                        crOrder: 0,
-                        buyoutPercent: 0,
-                        advertSpend: 0,
-                        drr: 0,
-                    });
-                }
-
-                const day = dailyData.get(date)!;
-                // forSale = выкуп (1), return = возврат (-1) 
-                const isSale = sale.saleID?.startsWith('S');
-                if (isSale) {
-                    day.buyoutCount += 1;
-                    day.buyoutSum += sale.finishedPrice || sale.priceWithDisc || 0;
+                        const day = dailyData.get(date)!;
+                        day.openCount += history.openCardCount || 0;
+                        day.cartCount += history.addToCartCount || 0;
+                        day.orderCount += history.ordersCount || 0;
+                        day.orderSum += history.ordersSumRub || 0;
+                        day.buyoutCount += history.buyoutsCount || 0;
+                        day.buyoutSum += history.buyoutsSumRub || 0;
+                    }
                 }
             }
         } else {
-            console.log(`Sales API failed: ${salesResponse.status}`);
+            console.log(`Analytics API failed: ${funnelResponse.status} ${await funnelResponse.text()}`);
         }
 
-        // Fetch orders for order counts
-        const ordersResponse = await fetch(
-            `${STATISTICS_API}/api/v1/supplier/orders?dateFrom=${formatDateRFC(startDate)}`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-            }
-        );
-
-        if (ordersResponse.ok) {
-            const ordersData = await ordersResponse.json();
-            console.log(`Orders API returned ${ordersData.length} records`);
-
-            // Aggregate orders by day
-            for (const order of ordersData) {
-                const date = order.date?.split('T')[0];
-                if (!date) continue;
-
-                if (!dailyData.has(date)) {
-                    dailyData.set(date, {
-                        date,
-                        orderSum: 0,
-                        orderCount: 0,
-                        avgCheck: 0,
-                        openCount: 0,
-                        cartCount: 0,
-                        buyoutCount: 0,
-                        buyoutSum: 0,
-                        crCart: 0,
-                        crOrder: 0,
-                        buyoutPercent: 0,
-                        advertSpend: 0,
-                        drr: 0,
-                    });
-                }
-
-                const day = dailyData.get(date)!;
-                if (!order.isCancel) {
-                    day.orderCount += 1;
-                    day.orderSum += order.finishedPrice || order.priceWithDisc || 0;
-                }
-            }
-        } else {
-            console.log(`Orders API failed: ${ordersResponse.status}`);
-        }
-
-        // Calculate derived metrics, filter by date range, and sort by date
-        const startDateStr = formatDate(startDate);
-        const endDateStr = formatDate(endDate);
-
+        // Calculate derived metrics and sort by date
         const result: DailyMetrics[] = Array.from(dailyData.values())
-            // Filter to only include dates within the requested period
-            .filter(day => day.date >= startDateStr && day.date <= endDateStr)
             .map(day => ({
                 ...day,
                 avgCheck: day.orderCount > 0 ? day.orderSum / day.orderCount : 0,
+                crCart: day.openCount > 0 ? (day.cartCount / day.openCount) * 100 : 0,
+                crOrder: day.cartCount > 0 ? (day.orderCount / day.cartCount) * 100 : 0,
                 buyoutPercent: day.orderCount > 0 ? (day.buyoutCount / day.orderCount) * 100 : 0,
             }))
             .sort((a, b) => a.date.localeCompare(b.date));
 
-        console.log(`Filtered to ${result.length} days within period ${startDateStr} to ${endDateStr}`);
+        console.log(`Processed ${result.length} days of data`);
 
         // Calculate totals for the period
         const totals = result.reduce(

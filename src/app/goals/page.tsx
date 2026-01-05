@@ -1,0 +1,319 @@
+'use client';
+
+import { useEffect, useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import UserHeader from '@/components/auth/UserHeader';
+import { GoalProgressCard, GoalsManagementModal } from '@/components/goals';
+import { useAuth } from '@/lib/useAuth';
+import { Category, CATEGORY_LABELS, canCreateTasks, canViewAllCategories } from '@/lib/auth-types';
+import {
+    CategoryGoal,
+    GoalProgress,
+    GoalPeriod,
+    getCurrentPeriod,
+    GOAL_STATUS_COLORS,
+} from '@/types/goal-types';
+import {
+    calculateAllGoalsProgress,
+    calculateTotalProgress,
+    formatPeriod,
+    formatGoalMoney,
+} from '@/lib/goals-utils';
+import { SKUData } from '@/types/dashboard';
+
+export default function GoalsPage() {
+    const router = useRouter();
+    const { user, isLoading: authLoading } = useAuth();
+
+    // State
+    const [goals, setGoals] = useState<CategoryGoal[]>([]);
+    const [skuData, setSkuData] = useState<SKUData[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [period, setPeriod] = useState<GoalPeriod>(getCurrentPeriod());
+    const [showManageModal, setShowManageModal] = useState(false);
+
+    // Auth redirect
+    useEffect(() => {
+        if (!authLoading && !user) {
+            router.push('/login');
+        }
+    }, [user, authLoading, router]);
+
+    // Fetch goals and SKU data
+    useEffect(() => {
+        async function fetchData() {
+            try {
+                setLoading(true);
+                setError(null);
+
+                // Fetch goals
+                const goalsRes = await fetch(`/api/goals?month=${period.month}&year=${period.year}`);
+                const goalsData = await goalsRes.json();
+
+                if (goalsData.success) {
+                    setGoals(goalsData.goals);
+                }
+
+                // Fetch SKU data for actual sales calculation
+                const skuRes = await fetch('/api/svetofor?period=30');
+                const skuDataResult = await skuRes.json();
+
+                if (skuDataResult.success && skuDataResult.data) {
+                    // Flatten all cluster data
+                    const allSku: SKUData[] = Object.values(skuDataResult.data).flat() as SKUData[];
+                    setSkuData(allSku);
+                }
+            } catch (err) {
+                console.error('Failed to fetch goals data:', err);
+                setError('Не удалось загрузить данные целей');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        if (user) {
+            fetchData();
+        }
+    }, [user, period]);
+
+    // Calculate progress for all goals
+    const goalsProgress = useMemo(() => {
+        return calculateAllGoalsProgress(goals, skuData, period);
+    }, [goals, skuData, period]);
+
+    // Filter progress by user's access
+    const visibleProgress = useMemo(() => {
+        if (!user) return [];
+
+        if (canViewAllCategories(user.role)) {
+            // Super admin sees all
+            return goalsProgress;
+        }
+
+        if (user.categoryId) {
+            // Category manager or manager sees only their category
+            return goalsProgress.filter(p => p.categoryId === user.categoryId);
+        }
+
+        return [];
+    }, [goalsProgress, user]);
+
+    // Total company progress
+    const totalProgress = useMemo(() => {
+        return calculateTotalProgress(goalsProgress);
+    }, [goalsProgress]);
+
+    // Handle saving goals
+    const handleSaveGoals = async (updates: { categoryId: Category; targetAmount: number }[]) => {
+        const response = await fetch('/api/goals', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                updates: updates.map(u => ({ ...u, period })),
+                userId: user?.id,
+            }),
+        });
+
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to save');
+        }
+
+        // Refresh goals
+        const goalsRes = await fetch(`/api/goals?month=${period.month}&year=${period.year}`);
+        const goalsData = await goalsRes.json();
+        if (goalsData.success) {
+            setGoals(goalsData.goals);
+        }
+    };
+
+    // Allowed categories for editing
+    const allowedCategories = useMemo(() => {
+        if (!user) return [];
+        if (canViewAllCategories(user.role)) {
+            return ['face', 'body', 'makeup', 'hair'] as Category[];
+        }
+        if (user.categoryId) {
+            return [user.categoryId];
+        }
+        return [];
+    }, [user]);
+
+    if (authLoading || !user) {
+        return (
+            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+                <div className="text-white">Загрузка...</div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-slate-900">
+            <UserHeader />
+
+            <main className="container mx-auto px-4 py-6 max-w-6xl">
+                {/* Page Header */}
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h1 className="text-2xl font-bold text-white mb-1">
+                            🎯 Цели по категориям
+                        </h1>
+                        <p className="text-slate-400">
+                            {formatPeriod(period)}
+                        </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {/* Period navigation */}
+                        <div className="flex items-center gap-2 bg-slate-800 rounded-lg p-1">
+                            <button
+                                onClick={() => setPeriod(prev => ({
+                                    month: prev.month === 1 ? 12 : prev.month - 1,
+                                    year: prev.month === 1 ? prev.year - 1 : prev.year,
+                                }))}
+                                className="px-3 py-1.5 text-slate-400 hover:text-white transition-colors"
+                            >
+                                ←
+                            </button>
+                            <span className="text-white text-sm px-2">
+                                {formatPeriod(period)}
+                            </span>
+                            <button
+                                onClick={() => setPeriod(prev => ({
+                                    month: prev.month === 12 ? 1 : prev.month + 1,
+                                    year: prev.month === 12 ? prev.year + 1 : prev.year,
+                                }))}
+                                className="px-3 py-1.5 text-slate-400 hover:text-white transition-colors"
+                            >
+                                →
+                            </button>
+                        </div>
+
+                        {/* Manage button */}
+                        {canCreateTasks(user.role) && (
+                            <button
+                                onClick={() => setShowManageModal(true)}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+                            >
+                                ⚙️ Управление целями
+                            </button>
+                        )}
+
+                        {/* Back button */}
+                        <button
+                            onClick={() => router.push('/')}
+                            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                        >
+                            ← Назад
+                        </button>
+                    </div>
+                </div>
+
+                {/* Error state */}
+                {error && (
+                    <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 mb-6 text-red-400">
+                        {error}
+                    </div>
+                )}
+
+                {/* Loading state */}
+                {loading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[1, 2, 3, 4].map(i => (
+                            <div key={i} className="bg-slate-800/50 rounded-xl p-4 animate-pulse">
+                                <div className="h-6 bg-slate-700 rounded w-1/3 mb-4" />
+                                <div className="h-3 bg-slate-700 rounded w-full mb-4" />
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="h-12 bg-slate-700 rounded" />
+                                    <div className="h-12 bg-slate-700 rounded" />
+                                    <div className="h-12 bg-slate-700 rounded" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <>
+                        {/* Total Company Progress (for admins) */}
+                        {canViewAllCategories(user.role) && goalsProgress.length > 0 && (
+                            <div className={`mb-6 p-4 rounded-xl border ${GOAL_STATUS_COLORS[totalProgress.overallStatus].border} ${GOAL_STATUS_COLORS[totalProgress.overallStatus].bg}`}>
+                                <h2 className="text-lg font-semibold text-white mb-3">
+                                    📊 Общий прогресс компании
+                                </h2>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="text-center">
+                                        <div className="text-slate-400 text-sm mb-1">План</div>
+                                        <div className="text-white font-bold text-xl">
+                                            {formatGoalMoney(totalProgress.totalGoal)}
+                                        </div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-slate-400 text-sm mb-1">Факт</div>
+                                        <div className={`font-bold text-xl ${GOAL_STATUS_COLORS[totalProgress.overallStatus].text}`}>
+                                            {formatGoalMoney(totalProgress.totalActual)}
+                                        </div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-slate-400 text-sm mb-1">Выполнение</div>
+                                        <div className={`font-bold text-xl ${GOAL_STATUS_COLORS[totalProgress.overallStatus].text}`}>
+                                            {totalProgress.totalPercentage.toFixed(1)}%
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Progress bar */}
+                                <div className="mt-4 h-2 bg-slate-700 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full transition-all duration-500 ${totalProgress.overallStatus === 'achieved' ? 'bg-green-500' :
+                                                totalProgress.overallStatus === 'on_track' ? 'bg-blue-500' :
+                                                    totalProgress.overallStatus === 'at_risk' ? 'bg-yellow-500' : 'bg-red-500'
+                                            }`}
+                                        style={{ width: `${Math.min(100, totalProgress.totalPercentage)}%` }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Category Cards */}
+                        {visibleProgress.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {visibleProgress.map(progress => (
+                                    <GoalProgressCard
+                                        key={progress.categoryId}
+                                        progress={progress}
+                                        onViewDetails={() => router.push(`/?category=${progress.categoryId}`)}
+                                        onCreateTask={() => router.push(`/?category=${progress.categoryId}&action=createTask`)}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 text-slate-400">
+                                <div className="text-4xl mb-4">🎯</div>
+                                <p>Цели на этот период не установлены</p>
+                                {canCreateTasks(user.role) && (
+                                    <button
+                                        onClick={() => setShowManageModal(true)}
+                                        className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+                                    >
+                                        Установить цели
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </>
+                )}
+            </main>
+
+            {/* Management Modal */}
+            <GoalsManagementModal
+                isOpen={showManageModal}
+                onClose={() => setShowManageModal(false)}
+                goals={goals}
+                onSave={handleSaveGoals}
+                period={period}
+                allowedCategories={allowedCategories}
+            />
+        </div>
+    );
+}
