@@ -86,11 +86,19 @@ export async function GET(request: Request) {
             }
         }
 
-        // Создаем funnel map
+        // Создаем funnel map с данными за оба периода
         const funnelMap = new Map<number, any>();
         for (const item of funnelData) {
             const stats = item.statistic?.selected;
+            const past = item.statistic?.past;
+
             if (stats) {
+                // Calculate deltas (percentage change)
+                const calcDelta = (current: number, previous: number): number | null => {
+                    if (!previous || previous === 0) return current > 0 ? 100 : null;
+                    return ((current - previous) / previous) * 100;
+                };
+
                 funnelMap.set(item.product.nmId, {
                     title: item.product.title,
                     vendorCode: item.product.vendorCode,
@@ -99,7 +107,7 @@ export async function GET(request: Request) {
                     // Stocks
                     stocksWb: item.stocks?.stocksWb || 0,
                     stocksMp: item.stocks?.stocksMp || 0,
-                    // Funnel stats
+                    // Current period funnel stats
                     openCount: stats.openCount || 0,
                     cartCount: stats.cartCount || 0,
                     orderCount: stats.orderCount || 0,
@@ -110,6 +118,23 @@ export async function GET(request: Request) {
                     crCart: stats.conversions?.addToCartPercent || 0,
                     crOrder: stats.conversions?.cartToOrderPercent || 0,
                     buyoutPercent: stats.conversions?.buyoutPercent || 0,
+                    // Past period data (for comparison)
+                    pastOrderCount: past?.orderCount || 0,
+                    pastOrderSum: past?.orderSum || 0,
+                    pastOpenCount: past?.openCount || 0,
+                    pastCrCart: past?.conversions?.addToCartPercent || 0,
+                    pastCrOrder: past?.conversions?.cartToOrderPercent || 0,
+                    pastBuyoutPercent: past?.conversions?.buyoutPercent || 0,
+                    // Deltas (percentage change)
+                    deltaOrderCount: calcDelta(stats.orderCount || 0, past?.orderCount || 0),
+                    deltaOrderSum: calcDelta(stats.orderSum || 0, past?.orderSum || 0),
+                    deltaOpenCount: calcDelta(stats.openCount || 0, past?.openCount || 0),
+                    deltaCrCart: past?.conversions?.addToCartPercent
+                        ? ((stats.conversions?.addToCartPercent || 0) - past.conversions.addToCartPercent).toFixed(1)
+                        : null,
+                    deltaCrOrder: past?.conversions?.cartToOrderPercent
+                        ? ((stats.conversions?.cartToOrderPercent || 0) - past.conversions.cartToOrderPercent).toFixed(1)
+                        : null,
                 });
             }
         }
@@ -283,6 +308,18 @@ export async function GET(request: Request) {
                 drr: drr?.toFixed(1),
                 advertSpend: advertSpend?.toFixed(0),
                 signals,
+                // Comparison data (past period)
+                pastOrderCount: funnel?.pastOrderCount || 0,
+                pastOrderSum: funnel?.pastOrderSum || 0,
+                pastOpenCount: funnel?.pastOpenCount || 0,
+                pastCrCart: funnel?.pastCrCart || 0,
+                pastCrOrder: funnel?.pastCrOrder || 0,
+                // Deltas (percentage changes)
+                deltaOrderCount: funnel?.deltaOrderCount,
+                deltaOrderSum: funnel?.deltaOrderSum,
+                deltaOpenCount: funnel?.deltaOpenCount,
+                deltaCrCart: funnel?.deltaCrCart,
+                deltaCrOrder: funnel?.deltaCrOrder,
             });
         }
 

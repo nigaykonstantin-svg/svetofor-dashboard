@@ -4,97 +4,11 @@ import { useEffect, useState, useMemo } from 'react';
 import UserHeader from '@/components/auth/UserHeader';
 import AiInsightsPanel from '@/components/AiInsightsPanel';
 import SettingsPanel from '@/components/SettingsPanel';
+import AnalyticsChart from '@/components/AnalyticsChart';
 import PeriodSelector from '@/components/PeriodSelector';
-
-interface Signal {
-  type: string;
-  priority: string;
-  message: string;
-}
-
-interface SKUData {
-  sku: string;
-  nmId: number;
-  title: string;
-  category: string;
-  subCategory?: string;
-  brandName?: string;
-  subjectName?: string;
-  // Managers from matrix
-  brandManager?: string;
-  categoryManager?: string;
-  // Stocks
-  stockTotal: number;
-  inTransit: number;
-  effectiveStock: number;
-  stocksWb?: number;
-  stocksMp?: number;
-  // Velocity
-  ordersPerDay: string;
-  stockCoverDays: string;
-  // Funnel
-  openCount?: number;
-  cartCount?: number;
-  orderCount?: number;
-  buyoutCount?: number;
-  buyoutSum?: number;
-  // Conversions
-  crCart?: string;
-  crOrder?: string;
-  buyoutPercent?: string;
-  orderSum: number;
-  // Advert
-  drr?: string;
-  advertSpend?: string;
-  signals: Signal[];
-}
-
-interface SvetoforData {
-  success: boolean;
-  timestamp: string;
-  totalSKUs: number;
-  funnelSKUs?: number;
-  clusters: {
-    OOS_NOW: number;
-    OOS_SOON: number;
-    HIGH_DRR: number;
-    LOW_CTR: number;
-    LOW_CR: number;
-    LOW_BUYOUT: number;
-    OVERSTOCK: number;
-    ABOVE_MARKET: number;
-  };
-  data: {
-    OOS_NOW: SKUData[];
-    OOS_SOON: SKUData[];
-    HIGH_DRR: SKUData[];
-    LOW_CTR: SKUData[];
-    LOW_CR: SKUData[];
-    LOW_BUYOUT: SKUData[];
-    OVERSTOCK: SKUData[];
-    ABOVE_MARKET: SKUData[];
-  };
-}
-
-const CLUSTER_CONFIG: Record<string, { label: string; color: string; textColor: string; priority: number }> = {
-  OOS_NOW: { label: '🚨 OOS', color: 'bg-red-500', textColor: 'text-red-500', priority: 1 },
-  HIGH_DRR: { label: '💸 ДРР', color: 'bg-red-600', textColor: 'text-red-400', priority: 2 },
-  OOS_SOON: { label: '⚠️ Скоро OOS', color: 'bg-orange-500', textColor: 'text-orange-400', priority: 3 },
-  LOW_CTR: { label: '👁️ Low CTR', color: 'bg-purple-500', textColor: 'text-purple-400', priority: 4 },
-  LOW_CR: { label: '🛒 Low CR', color: 'bg-yellow-500', textColor: 'text-yellow-400', priority: 5 },
-  LOW_BUYOUT: { label: '📦 Низкий выкуп', color: 'bg-pink-500', textColor: 'text-pink-400', priority: 6 },
-  OVERSTOCK: { label: '📦 Затоварка', color: 'bg-blue-500', textColor: 'text-blue-400', priority: 7 },
-  ABOVE_MARKET: { label: '🏆 Топ', color: 'bg-green-500', textColor: 'text-green-400', priority: 8 },
-};
-
-function formatMoney(value: number): string {
-  if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M';
-  if (value >= 1000) return (value / 1000).toFixed(0) + 'K';
-  return value.toLocaleString('ru-RU');
-}
-
-type SortField = 'sku' | 'title' | 'stockTotal' | 'ordersPerDay' | 'stockCoverDays' | 'crCart' | 'crOrder' | 'drr' | 'orderSum';
-type SortDirection = 'asc' | 'desc';
+import DeltaBadge from '@/components/DeltaBadge';
+import { KPICards, SignalClusters, CategoryTabs, SKUTableSection, CLUSTER_CONFIG } from '@/components/dashboard';
+import { SKUData, SvetoforData, SortField, SortDirection, formatMoney } from '@/types';
 
 export default function SvetoforDashboard() {
   const [data, setData] = useState<SvetoforData | null>(null);
@@ -594,87 +508,28 @@ export default function SvetoforDashboard() {
 
       <main className="p-6">
         {/* Category Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-5 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${selectedCategory === cat
-                ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
-                }`}
-            >
-              {cat === 'Все' && '🏠 '}
-              {cat === 'Лицо' && '😊 '}
-              {cat === 'Тело' && '🧴 '}
-              {cat === 'Макияж' && '💄 '}
-              {cat === 'Волосы' && '💇 '}
-              {cat}
-            </button>
-          ))}
-        </div>
+        <CategoryTabs
+          categories={CATEGORIES}
+          selectedCategory={selectedCategory}
+          onCategorySelect={setSelectedCategory}
+        />
 
         {/* KPI Cards */}
-        {kpis && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="bg-gradient-to-br from-emerald-900/50 to-emerald-950/50 rounded-xl p-5 border border-emerald-800/30">
-              <div className="text-emerald-400 text-sm mb-1">Заказы ({period} дней)</div>
-              <div className="text-3xl font-bold">{formatMoney(kpis.totalOrderSum)} ₽</div>
-            </div>
-            <div className="bg-gradient-to-br from-blue-900/50 to-blue-950/50 rounded-xl p-5 border border-blue-800/30">
-              <div className="text-blue-400 text-sm mb-1">Количество заказов</div>
-              <div className="text-3xl font-bold">{kpis.totalOrders.toLocaleString()}</div>
-            </div>
-            <div className="bg-gradient-to-br from-purple-900/50 to-purple-950/50 rounded-xl p-5 border border-purple-800/30">
-              <div className="text-purple-400 text-sm mb-1">Средний чек</div>
-              <div className="text-3xl font-bold">{formatMoney(kpis.avgCheck)} ₽</div>
-            </div>
-            <div className={`bg-gradient-to-br rounded-xl p-5 border ${kpis.avgDRR > 30 ? 'from-red-900/50 to-red-950/50 border-red-800/30' :
-              kpis.avgDRR > 20 ? 'from-yellow-900/50 to-yellow-950/50 border-yellow-800/30' :
-                'from-green-900/50 to-green-950/50 border-green-800/30'
-              }`}>
-              <div className={`text-sm mb-1 ${kpis.avgDRR > 30 ? 'text-red-400' : kpis.avgDRR > 20 ? 'text-yellow-400' : 'text-green-400'
-                }`}>Средний ДРР</div>
-              <div className="text-3xl font-bold">{kpis.avgDRR.toFixed(1)}%</div>
-            </div>
-          </div>
-        )}
+        <KPICards kpis={kpis} period={period} />
+
+        {/* Analytics Chart */}
+        <div className="mb-6">
+          <AnalyticsChart category={selectedCategory} />
+        </div>
 
         {/* Signal Clusters */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-slate-300">Сигналы</h2>
-            <button
-              onClick={() => { setShowAllSKUs(!showAllSKUs); setSelectedCluster(null); }}
-              className={`text-sm px-3 py-1 rounded-full transition ${showAllSKUs ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                }`}
-            >
-              {showAllSKUs ? '✓ Все SKU' : 'Показать все SKU'}
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(CLUSTER_CONFIG).map(([key, config]) => {
-              const count = categoryClusters?.[key as keyof typeof categoryClusters] || 0;
-              const isSelected = selectedCluster === key;
-
-              return (
-                <button
-                  key={key}
-                  onClick={() => { setSelectedCluster(isSelected ? null : key); setShowAllSKUs(false); }}
-                  className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${isSelected
-                    ? `${config.color} text-white shadow-lg`
-                    : 'bg-slate-800 hover:bg-slate-700'
-                    }`}
-                >
-                  <span className={isSelected ? 'text-white' : config.textColor}>{config.label}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-sm ${isSelected ? 'bg-white/20' : 'bg-slate-700'
-                    }`}>{count}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <SignalClusters
+          clusters={categoryClusters}
+          selectedCluster={selectedCluster}
+          showAllSKUs={showAllSKUs}
+          onClusterSelect={(cluster) => { setSelectedCluster(cluster); setShowAllSKUs(false); }}
+          onShowAllToggle={() => { setShowAllSKUs(!showAllSKUs); setSelectedCluster(null); }}
+        />
 
         {/* Search and Filters */}
         {(selectedCluster || showAllSKUs) && (
@@ -1016,18 +871,37 @@ export default function SvetoforDashboard() {
                         )}
                         {columns.views && <td className="p-3 text-right font-mono">{(item.openCount || 0).toLocaleString()}</td>}
                         {columns.cartCount && <td className="p-3 text-right font-mono">{(item.cartCount || 0).toLocaleString()}</td>}
-                        {columns.orderCount && <td className="p-3 text-right font-mono">{(item.orderCount || 0).toLocaleString()}</td>}
+                        {columns.orderCount && (
+                          <td className="p-3 text-right font-mono">
+                            <div className="flex flex-col items-end">
+                              <span>{(item.orderCount || 0).toLocaleString()}</span>
+                              {comparisonEnabled && item.deltaOrderCount !== undefined && item.deltaOrderCount !== null && (
+                                <DeltaBadge value={item.deltaOrderCount} format="percent" size="sm" />
+                              )}
+                            </div>
+                          </td>
+                        )}
                         {columns.buyoutCount && <td className="p-3 text-right font-mono">{(item.buyoutCount || 0).toLocaleString()}</td>}
                         {columns.buyoutSum && <td className="p-3 text-right font-mono">{item.buyoutSum ? formatMoney(item.buyoutSum) + ' ₽' : '—'}</td>}
                         {columns.ctr && (
                           <td className={`p-3 text-right font-mono ${parseFloat(item.crCart || '0') < 4 ? 'text-yellow-400' : 'text-slate-300'}`}>
-                            {item.crCart ? `${item.crCart}%` : '—'}
+                            <div className="flex flex-col items-end">
+                              <span>{item.crCart ? `${item.crCart}%` : '—'}</span>
+                              {comparisonEnabled && item.deltaCrCart && (
+                                <DeltaBadge value={item.deltaCrCart} format="points" size="sm" />
+                              )}
+                            </div>
                           </td>
                         )}
                         {columns.crCart && <td className="p-3 text-right font-mono text-slate-300">{item.crCart ? `${item.crCart}%` : '—'}</td>}
                         {columns.crOrder && (
                           <td className={`p-3 text-right font-mono ${parseFloat(item.crOrder || '0') < 25 ? 'text-yellow-400' : 'text-slate-300'}`}>
-                            {item.crOrder ? `${item.crOrder}%` : '—'}
+                            <div className="flex flex-col items-end">
+                              <span>{item.crOrder ? `${item.crOrder}%` : '—'}</span>
+                              {comparisonEnabled && item.deltaCrOrder && (
+                                <DeltaBadge value={item.deltaCrOrder} format="points" size="sm" />
+                              )}
+                            </div>
                           </td>
                         )}
                         {columns.buyout && <td className="p-3 text-right font-mono">{item.buyoutPercent ? `${item.buyoutPercent}%` : '—'}</td>}
@@ -1038,7 +912,16 @@ export default function SvetoforDashboard() {
                           </td>
                         )}
                         {columns.advertSpend && <td className="p-3 text-right font-mono">{item.advertSpend ? `${formatMoney(parseFloat(item.advertSpend))} ₽` : '—'}</td>}
-                        {columns.orderSum && <td className="p-3 text-right font-mono">{item.orderSum > 0 ? formatMoney(item.orderSum) + ' ₽' : '—'}</td>}
+                        {columns.orderSum && (
+                          <td className="p-3 text-right font-mono">
+                            <div className="flex flex-col items-end">
+                              <span>{item.orderSum > 0 ? formatMoney(item.orderSum) + ' ₽' : '—'}</span>
+                              {comparisonEnabled && item.deltaOrderSum !== undefined && item.deltaOrderSum !== null && (
+                                <DeltaBadge value={item.deltaOrderSum} format="percent" size="sm" />
+                              )}
+                            </div>
+                          </td>
+                        )}
                         {columns.signal && (
                           <td className="p-3">
                             {item.signals[0] && (

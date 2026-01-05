@@ -20,6 +20,20 @@ export interface WBStock {
     Discount: number;
 }
 
+export interface WBFunnelStats {
+    openCount: number;
+    cartCount: number;
+    orderCount: number;
+    orderSum: number;
+    buyoutCount: number;
+    buyoutSum?: number;
+    conversions: {
+        addToCartPercent: number;
+        cartToOrderPercent: number;
+        buyoutPercent: number;
+    };
+}
+
 export interface WBFunnelProduct {
     product: {
         nmId: number;
@@ -33,18 +47,12 @@ export interface WBFunnelProduct {
         };
     };
     statistic: {
-        selected: {
-            openCount: number;
-            cartCount: number;
-            orderCount: number;
-            orderSum: number;
-            buyoutCount: number;
-            conversions: {
-                addToCartPercent: number;
-                cartToOrderPercent: number;
-                buyoutPercent: number;
-            };
-        };
+        selected: WBFunnelStats;
+        past?: WBFunnelStats; // Previous period for comparison
+    };
+    stocks?: {
+        stocksWb: number;
+        stocksMp: number;
     };
 }
 
