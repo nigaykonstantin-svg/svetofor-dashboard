@@ -546,6 +546,14 @@ export default function SvetoforDashboard() {
               <span className="text-lg">⚙️</span> Настройки
             </button>
 
+            {/* Goals Button */}
+            <button
+              onClick={() => router.push('/goals')}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 rounded-lg transition flex items-center gap-2"
+            >
+              <span className="text-lg">🎯</span> Цели
+            </button>
+
             {/* User Profile */}
             <UserHeader />
           </div>
@@ -605,6 +613,15 @@ export default function SvetoforDashboard() {
               )}
             </button>
           </div>
+        )}
+
+        {/* Goal Progress Bar - show when category is selected */}
+        {selectedCategory !== 'Все' && (selectedCluster || showAllSKUs) && (
+          <GoalsSummaryBar
+            progress={currentGoalProgress}
+            onManageGoals={canCreateTasks(user?.role || 'pending') ? () => setShowGoalsModal(true) : undefined}
+            loading={goalsLoading}
+          />
         )}
 
         {/* Search and Filters */}
@@ -1120,6 +1137,19 @@ export default function SvetoforDashboard() {
       <SettingsPanel
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      {/* Goals Management Modal */}
+      <GoalsManagementModal
+        isOpen={showGoalsModal}
+        onClose={() => setShowGoalsModal(false)}
+        goals={goals}
+        onSave={handleSaveGoals}
+        allowedCategories={
+          canViewAllCategories(user?.role || 'pending')
+            ? ['face', 'body', 'makeup', 'hair']
+            : user?.categoryId ? [user.categoryId] : []
+        }
       />
     </div>
   );
