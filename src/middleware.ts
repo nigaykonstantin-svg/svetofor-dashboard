@@ -12,7 +12,8 @@ export default withAuth(
                 // Allow access to login page and auth API without token
                 if (
                     req.nextUrl.pathname.startsWith('/login') ||
-                    req.nextUrl.pathname.startsWith('/api/auth')
+                    req.nextUrl.pathname.startsWith('/api/auth') ||
+                    req.nextUrl.pathname.startsWith('/api/sync-analytics')
                 ) {
                     return true;
                 }

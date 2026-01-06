@@ -2,12 +2,11 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import UserHeader from '@/components/auth/UserHeader';
 import { EnhancedAiPanel } from '@/components/ai';
-import SettingsPanel from '@/components/SettingsPanel';
-import AnalyticsChart from '@/components/AnalyticsChart';
-import PeriodSelector from '@/components/PeriodSelector';
-import DeltaBadge from '@/components/DeltaBadge';
+import { SettingsPanel } from '@/components/panels';
+import { AnalyticsChart, DeltaBadge } from '@/components/charts';
+import { CommandPalette, useCommandPalette } from '@/components/command-palette';
+import { DashboardHeader } from '@/components/layout';
 import { KPICards, SignalClusters, CategoryTabs, SKUTableSection, CLUSTER_CONFIG } from '@/components/dashboard';
 import { TaskModal, TaskControlPanel, TaskDetailModal, TaskList, useTasks, Task, TaskStatus, TaskSKU } from '@/components/tasks';
 import { GoalsSummaryBar, GoalsManagementModal } from '@/components/goals';
@@ -113,6 +112,9 @@ export default function SvetoforDashboard() {
   const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
   const { user, isSuperAdmin, isCategoryManager } = useAuth();
   const router = useRouter();
+
+  // Command Palette (⌘K)
+  const commandPalette = useCommandPalette();
 
   // Use the new tasks hook
   const {
@@ -500,65 +502,20 @@ export default function SvetoforDashboard() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       {/* Header */}
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <span className="text-3xl">🚦</span> WB Analytics Dashboard
-            </h1>
-            <p className="text-slate-500 text-sm">
-              MIXIT • {data?.totalSKUs.toLocaleString()} SKU • {new Date(data?.timestamp || '').toLocaleString('ru-RU')}
-            </p>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Period Selector */}
-            <PeriodSelector
-              period={period}
-              onPeriodChange={(p) => {
-                setPeriod(p);
-                setCustomDateRange(undefined);
-              }}
-              dateRange={customDateRange}
-              onDateRangeChange={setCustomDateRange}
-              comparisonEnabled={comparisonEnabled}
-              onComparisonToggle={setComparisonEnabled}
-            />
-            <button
-              onClick={fetchData}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition flex items-center gap-2"
-            >
-              <span className="text-lg">🔄</span> Обновить
-            </button>
-
-            {/* AI Analysis Button */}
-            <button
-              onClick={() => setShowAiPanel(true)}
-              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg transition flex items-center gap-2 shadow-lg"
-            >
-              <span className="text-lg">🤖</span> AI Анализ
-            </button>
-
-            {/* Settings Button */}
-            <button
-              onClick={() => setShowSettings(true)}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition flex items-center gap-2"
-            >
-              <span className="text-lg">⚙️</span> Настройки
-            </button>
-
-            {/* Goals Button */}
-            <button
-              onClick={() => router.push('/goals')}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 rounded-lg transition flex items-center gap-2"
-            >
-              <span className="text-lg">🎯</span> Цели
-            </button>
-
-            {/* User Profile */}
-            <UserHeader />
-          </div>
-        </div>
-      </header>
+      <DashboardHeader
+        totalSKUs={data?.totalSKUs}
+        timestamp={data?.timestamp}
+        period={period}
+        onPeriodChange={setPeriod}
+        customDateRange={customDateRange}
+        onDateRangeChange={setCustomDateRange}
+        comparisonEnabled={comparisonEnabled}
+        onComparisonToggle={setComparisonEnabled}
+        onRefresh={fetchData}
+        onOpenAiPanel={() => setShowAiPanel(true)}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenCommandPalette={commandPalette.open}
+      />
 
       <main className="p-6">
         {/* Category Tabs */}
@@ -1150,6 +1107,35 @@ export default function SvetoforDashboard() {
             ? ['face', 'body', 'makeup', 'hair']
             : user?.categoryId ? [user.categoryId] : []
         }
+      />
+
+      {/* Command Palette (⌘K) */}
+      <CommandPalette
+        isOpen={commandPalette.isOpen}
+        onClose={commandPalette.close}
+        skus={allSKUs.map(s => ({ nmId: s.nmId, sku: s.sku, title: s.title, category: s.category }))}
+        onSelectSKU={(nmId) => {
+          setSearchQuery(nmId.toString());
+          setShowAllSKUs(true);
+          setSelectedCluster(null);
+        }}
+        onNavigate={(path) => router.push(path)}
+        onAction={(action) => {
+          if (action === 'refresh') fetchData();
+          if (action === 'export') exportToExcel();
+          if (action === 'ai') setShowAiPanel(true);
+          if (action === 'settings') setShowSettings(true);
+          if (action.startsWith('filter:')) {
+            const filter = action.replace('filter:', '');
+            if (filter === 'ALL') {
+              setShowAllSKUs(true);
+              setSelectedCluster(null);
+            } else {
+              setSelectedCluster(filter);
+              setShowAllSKUs(false);
+            }
+          }
+        }}
       />
     </div>
   );
