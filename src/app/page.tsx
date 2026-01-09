@@ -162,7 +162,19 @@ export default function SvetoforDashboard() {
   async function fetchData() {
     try {
       setLoading(true);
-      const response = await fetch(`/api/svetofor?period=${period}`);
+
+      // Read user thresholds from localStorage and pass to API
+      let thresholdsParam = '';
+      try {
+        const savedThresholds = localStorage.getItem('svetofor_thresholds');
+        if (savedThresholds) {
+          thresholdsParam = `&thresholds=${encodeURIComponent(savedThresholds)}`;
+        }
+      } catch (e) {
+        // localStorage not available
+      }
+
+      const response = await fetch(`/api/svetofor?period=${period}${thresholdsParam}`);
       const result = await response.json();
       if (result.success) {
         setData(result);

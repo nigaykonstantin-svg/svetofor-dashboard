@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // Task type labels
 export const TASK_TYPES: Record<string, string> = {
@@ -166,17 +166,17 @@ export function useTasks() {
     };
 
     // Filter tasks by user role
-    const getTasksForUser = (userId: string, role: string, categoryId?: string) => {
+    const getTasksForUser = useCallback((userId: string, role: string, categoryId?: string) => {
         return tasks.filter(task => {
             if (role === 'super_admin') return true;
             if (role === 'category_manager') return task.categoryId === categoryId;
             if (role === 'manager') return task.assigneeId === userId;
             return false;
         });
-    };
+    }, [tasks]);
 
     // Get task statistics
-    const getTaskStats = (filteredTasks: Task[]) => {
+    const getTaskStats = useCallback((filteredTasks: Task[]) => {
         const now = new Date();
         return {
             total: filteredTasks.length,
@@ -190,10 +190,10 @@ export function useTasks() {
                 return new Date(t.deadline) < now;
             }).length,
         };
-    };
+    }, []);
 
     // Get tasks grouped by assignee
-    const getTasksByAssignee = (filteredTasks: Task[]) => {
+    const getTasksByAssignee = useCallback((filteredTasks: Task[]) => {
         const byAssignee: Record<string, { name: string; tasks: Task[]; overdue: number }> = {};
 
         filteredTasks.forEach(task => {
@@ -217,7 +217,7 @@ export function useTasks() {
             active: data.tasks.filter(t => t.status !== 'done').length,
             overdue: data.overdue,
         }));
-    };
+    }, []);
 
     return {
         tasks,

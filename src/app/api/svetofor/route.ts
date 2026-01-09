@@ -45,6 +45,18 @@ export async function GET(request: Request) {
         const period = parseInt(searchParams.get('period') || '7');
         const validPeriod = Math.min(Math.max(period, 1), 180); // Accept 1-180 days
 
+        // Parse user thresholds from query params (from localStorage on client)
+        let userThresholds: Record<string, any> = {};
+        const thresholdsParam = searchParams.get('thresholds');
+        if (thresholdsParam) {
+            try {
+                userThresholds = JSON.parse(thresholdsParam);
+                console.log('Using user thresholds from settings');
+            } catch (e) {
+                console.warn('Failed to parse user thresholds');
+            }
+        }
+
         // Calculate date range
         const dateFrom = new Date();
         dateFrom.setDate(dateFrom.getDate() - validPeriod);
@@ -69,13 +81,35 @@ export async function GET(request: Request) {
             'Макияж': 'makeup',
         };
 
-        // Get thresholds for category with fallback defaults
+        // Reverse map for looking up user thresholds by Russian name
+        const CATEGORY_REVERSE_MAP: Record<string, string> = {
+            'body': 'Уход за телом',
+            'face': 'Уход за лицом',
+            'hair': 'Уход за волосами',
+            'makeup': 'Макияж',
+        };
+
+        // Get thresholds for category - prioritizes user settings from localStorage
         const getThresholdsForCategory = (categoryName: string) => {
+            // First check user thresholds from settings UI
+            if (userThresholds[categoryName]) {
+                const ut = userThresholds[categoryName];
+                console.log(`[Thresholds] Using user settings for "${categoryName}": CR_CART_LOW=${ut.CR_CART_LOW}`);
+                return {
+                    ctr_low: ut.CR_CART_LOW || 4,           // "Низкий CR корзина" - for LOW_CTR
+                    cr_order_low: ut.CR_CART_LOW || 4,      // SAME field for LOW_CR (was wrong: CR_ORDER_HIGH)
+                    cr_order_high: ut.CR_ORDER_HIGH || 10,  // "Топ CR заказ" - for ABOVE_MARKET
+                };
+            }
+
+            // Fallback to YAML config
             const key = CATEGORY_MAP[categoryName] || categoryName.toLowerCase();
             const config = categoryConfigs[key];
+            console.log(`[Thresholds] Using YAML config for "${categoryName}" (key: ${key})`);
             return {
                 ctr_low: config?.ctr_benchmark || 4,      // Default 4%
-                cr_order_low: config?.cr_order_low || 25, // Default 25% (корзина→заказ)
+                cr_order_low: config?.cr_order_low || 4,  // Default 4% for LOW_CR
+                cr_order_high: 10,                        // Default 10% for ABOVE_MARKET
             };
         };
 
