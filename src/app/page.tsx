@@ -15,6 +15,7 @@ import { SKUData, SvetoforData, SortField, SortDirection, formatMoney } from '@/
 import { CategoryGoal, GoalProgress, getCurrentPeriod } from '@/types/goal-types';
 import { calculateAllGoalsProgress, calculateCategorySales } from '@/lib/goals-utils';
 import { Category, canViewAllCategories, canCreateTasks } from '@/lib/auth-types';
+import { CATEGORY_MAP, CATEGORY_KEYS, CATEGORY_TO_ID } from '@/lib/constants';
 
 export default function SvetoforDashboard() {
   const [data, setData] = useState<SvetoforData | null>(null);
@@ -126,13 +127,33 @@ export default function SvetoforDashboard() {
     getTaskStats
   } = useTasks();
 
-  // Get tasks visible to current user
+  // Get tasks visible to current user (memoized to prevent re-renders)
   const userTasks = useMemo(() => {
     if (!user) return [];
-    return getTasksForUser(user.id, user.role, user.categoryId);
-  }, [user, tasks, getTasksForUser]);
+    return tasks.filter(task => {
+      if (user.role === 'super_admin') return true;
+      if (user.role === 'category_manager') return task.categoryId === user.categoryId;
+      if (user.role === 'manager') return task.assigneeId === user.id;
+      return false;
+    });
+  }, [user, tasks]);
 
-  const taskStats = useMemo(() => getTaskStats(userTasks), [userTasks, getTaskStats]);
+  // Calculate task stats
+  const taskStats = useMemo(() => {
+    const now = new Date();
+    return {
+      total: userTasks.length,
+      new: userTasks.filter(t => t.status === 'new').length,
+      inProgress: userTasks.filter(t => t.status === 'in_progress').length,
+      review: userTasks.filter(t => t.status === 'review').length,
+      done: userTasks.filter(t => t.status === 'done').length,
+      critical: userTasks.filter(t => t.priority === 'critical' && t.status !== 'done').length,
+      overdue: userTasks.filter(t => {
+        if (!t.deadline || t.status === 'done') return false;
+        return new Date(t.deadline) < now;
+      }).length,
+    };
+  }, [userTasks]);
 
   // Can current user see task control panel?
   const canSeeTaskControl = isSuperAdmin || isCategoryManager;
@@ -225,13 +246,7 @@ export default function SvetoforDashboard() {
 
     // Category filter - using categoryWB from matrix
     if (selectedCategory !== 'Все') {
-      const categoryMap: Record<string, string[]> = {
-        'Лицо': ['Уход за лицом'],
-        'Тело': ['Уход за телом'],
-        'Макияж': ['Макияж'],
-        'Волосы': ['Уход за волосами'],
-      };
-      const allowedCategories = categoryMap[selectedCategory] || [];
+      const allowedCategories = CATEGORY_MAP[selectedCategory] || [];
       result = result.filter(s =>
         allowedCategories.some(cat =>
           s.category?.toLowerCase() === cat.toLowerCase()
@@ -374,13 +389,7 @@ export default function SvetoforDashboard() {
 
     // Filter by category
     if (selectedCategory !== 'Все') {
-      const categoryMap: Record<string, string[]> = {
-        'Лицо': ['Уход за лицом'],
-        'Тело': ['Уход за телом'],
-        'Макияж': ['Макияж'],
-        'Волосы': ['Уход за волосами'],
-      };
-      const allowedCategories = categoryMap[selectedCategory] || [];
+      const allowedCategories = CATEGORY_MAP[selectedCategory] || [];
       skusForClusters = allSKUs.filter(s =>
         allowedCategories.some(cat =>
           s.category?.toLowerCase() === cat.toLowerCase()
@@ -451,14 +460,7 @@ export default function SvetoforDashboard() {
       return null;
     }
 
-    const categoryMap: Record<string, Category> = {
-      'Лицо': 'face',
-      'Тело': 'body',
-      'Макияж': 'makeup',
-      'Волосы': 'hair',
-    };
-
-    const categoryId = categoryMap[selectedCategory];
+    const categoryId = CATEGORY_TO_ID[selectedCategory] as Category;
     if (!categoryId) return null;
 
     const goalsProgress = calculateAllGoalsProgress(goals, allSKUs, getCurrentPeriod());

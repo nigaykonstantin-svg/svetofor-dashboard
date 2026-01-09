@@ -38,14 +38,33 @@ function TasksPageContent() {
     // Selected task for detail modal
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-    // Get tasks for current user based on role
+    // Get tasks for current user based on role (inline to avoid callback dependency issues)
     const userTasks = useMemo(() => {
         if (!user || !isLoaded) return [];
-        return getTasksForUser(user.id, user.role, user.categoryId);
-    }, [user, tasks, isLoaded, getTasksForUser]);
+        return tasks.filter(task => {
+            if (user.role === 'super_admin') return true;
+            if (user.role === 'category_manager') return task.categoryId === user.categoryId;
+            if (user.role === 'manager') return task.assigneeId === user.id;
+            return false;
+        });
+    }, [user, tasks, isLoaded]);
 
-    // Get stats
-    const stats = useMemo(() => getTaskStats(userTasks), [userTasks, getTaskStats]);
+    // Get stats (inline calculation)
+    const stats = useMemo(() => {
+        const now = new Date();
+        return {
+            total: userTasks.length,
+            new: userTasks.filter(t => t.status === 'new').length,
+            inProgress: userTasks.filter(t => t.status === 'in_progress').length,
+            review: userTasks.filter(t => t.status === 'review').length,
+            done: userTasks.filter(t => t.status === 'done').length,
+            critical: userTasks.filter(t => t.priority === 'critical' && t.status !== 'done').length,
+            overdue: userTasks.filter(t => {
+                if (!t.deadline || t.status === 'done') return false;
+                return new Date(t.deadline) < now;
+            }).length,
+        };
+    }, [userTasks]);
 
     // Get unique assignees for filter
     const assignees = useMemo(() => {
