@@ -18,6 +18,7 @@ import {
     calculateTotalProgress,
     formatPeriod,
     formatGoalMoney,
+    getProblematicSKUs,
 } from '@/lib/goals-utils';
 import { SKUData } from '@/types/dashboard';
 
@@ -266,8 +267,8 @@ export default function GoalsPage() {
                                 <div className="mt-4 h-2 bg-slate-700 rounded-full overflow-hidden">
                                     <div
                                         className={`h-full transition-all duration-500 ${totalProgress.overallStatus === 'achieved' ? 'bg-green-500' :
-                                                totalProgress.overallStatus === 'on_track' ? 'bg-blue-500' :
-                                                    totalProgress.overallStatus === 'at_risk' ? 'bg-yellow-500' : 'bg-red-500'
+                                            totalProgress.overallStatus === 'on_track' ? 'bg-blue-500' :
+                                                totalProgress.overallStatus === 'at_risk' ? 'bg-yellow-500' : 'bg-red-500'
                                             }`}
                                         style={{ width: `${Math.min(100, totalProgress.totalPercentage)}%` }}
                                     />
@@ -282,6 +283,7 @@ export default function GoalsPage() {
                                     <GoalProgressCard
                                         key={progress.categoryId}
                                         progress={progress}
+                                        problematicSKUs={getProblematicSKUs(skuData, progress.categoryId, 3)}
                                         onViewDetails={() => router.push(`/?category=${progress.categoryId}`)}
                                         onCreateTask={() => router.push(`/?category=${progress.categoryId}&action=createTask`)}
                                     />

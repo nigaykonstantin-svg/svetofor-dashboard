@@ -14,20 +14,20 @@ import {
 } from '@/types/goal-types';
 import { SKUData } from '@/types/dashboard';
 
+// FIXED: Correct mapping to actual WB category names
+const CATEGORY_MAPPING: Record<Category, string[]> = {
+    face: ['Уход за лицом', 'уход за лицом'],
+    body: ['Уход за телом', 'уход за телом'],
+    makeup: ['Макияж', 'макияж'],
+    hair: ['Уход за волосами', 'уход за волосами'],
+};
+
 // Calculate actual sales for a category from SKU data
 export function calculateCategorySales(
     skuData: SKUData[],
     categoryId: Category
 ): number {
-    // Map category ID to Russian category names used in data
-    const categoryMapping: Record<Category, string[]> = {
-        face: ['Лицо', 'лицо', 'ЛИЦО', 'Face', 'face'],
-        body: ['Тело', 'тело', 'ТЕЛО', 'Body', 'body'],
-        makeup: ['Макияж', 'макияж', 'МАКИЯЖ', 'Makeup', 'makeup'],
-        hair: ['Волосы', 'волосы', 'ВОЛОСЫ', 'Hair', 'hair'],
-    };
-
-    const categoryNames = categoryMapping[categoryId] || [];
+    const categoryNames = CATEGORY_MAPPING[categoryId] || [];
 
     return skuData
         .filter(sku => categoryNames.some(name =>
@@ -43,11 +43,21 @@ export function calculateGoalProgress(
 ): GoalProgress {
     const period = goal.period;
     const daysLeft = getDaysLeftInPeriod(period);
+    const daysElapsed = getDaysElapsedInPeriod(period);
+    const daysInMonth = new Date(period.year, period.month, 0).getDate();
+
     const percentage = goal.targetAmount > 0
         ? (actualAmount / goal.targetAmount) * 100
         : 0;
     const remaining = Math.max(0, goal.targetAmount - actualAmount);
     const dailyTarget = daysLeft > 0 ? remaining / daysLeft : 0;
+
+    // Calculate forecast
+    const dailyAverage = daysElapsed > 0 ? actualAmount / daysElapsed : 0;
+    const projectedTotal = dailyAverage * daysInMonth;
+    const projectedPercentage = goal.targetAmount > 0
+        ? (projectedTotal / goal.targetAmount) * 100
+        : 0;
 
     const expectedProgress = getExpectedProgress(period);
     const status = calculateGoalStatus(percentage, expectedProgress);
@@ -65,7 +75,11 @@ export function calculateGoalProgress(
         percentage: Math.round(percentage * 10) / 10,
         remaining,
         daysLeft,
+        daysElapsed,
         dailyTarget: Math.round(dailyTarget),
+        dailyAverage: Math.round(dailyAverage),
+        projectedTotal: Math.round(projectedTotal),
+        projectedPercentage: Math.round(projectedPercentage * 10) / 10,
         status,
         trend,
     };
@@ -95,12 +109,18 @@ export function calculateTotalProgress(progresses: GoalProgress[]): {
     totalGoal: number;
     totalActual: number;
     totalPercentage: number;
+    totalProjected: number;
+    totalProjectedPercentage: number;
     overallStatus: GoalStatus;
 } {
     const totalGoal = progresses.reduce((sum, p) => sum + p.goal, 0);
     const totalActual = progresses.reduce((sum, p) => sum + p.actual, 0);
+    const totalProjected = progresses.reduce((sum, p) => sum + p.projectedTotal, 0);
     const totalPercentage = totalGoal > 0
         ? (totalActual / totalGoal) * 100
+        : 0;
+    const totalProjectedPercentage = totalGoal > 0
+        ? (totalProjected / totalGoal) * 100
         : 0;
 
     const expectedProgress = getExpectedProgress(getCurrentPeriod());
@@ -110,8 +130,64 @@ export function calculateTotalProgress(progresses: GoalProgress[]): {
         totalGoal,
         totalActual,
         totalPercentage: Math.round(totalPercentage * 10) / 10,
+        totalProjected: Math.round(totalProjected),
+        totalProjectedPercentage: Math.round(totalProjectedPercentage * 10) / 10,
         overallStatus,
     };
+}
+
+// Get top problematic SKUs in a category
+export function getProblematicSKUs(
+    skuData: SKUData[],
+    categoryId: Category,
+    limit: number = 3
+): { sku: SKUData; issue: string; severity: 'high' | 'medium' | 'low' }[] {
+    const categoryNames = CATEGORY_MAPPING[categoryId] || [];
+
+    const categorySKUs = skuData.filter(sku =>
+        categoryNames.some(name => sku.category?.toLowerCase() === name.toLowerCase())
+    );
+
+    const problematic: { sku: SKUData; issue: string; severity: 'high' | 'medium' | 'low' }[] = [];
+
+    for (const sku of categorySKUs) {
+        // OOS - highest priority
+        if (sku.stockTotal === 0) {
+            problematic.push({
+                sku,
+                issue: '🔴 Нет в наличии (OOS)',
+                severity: 'high'
+            });
+            continue;
+        }
+
+        // High DRR (>30%)
+        const drr = parseFloat(sku.drr || '0');
+        if (drr > 30) {
+            problematic.push({
+                sku,
+                issue: `🟠 Высокий ДРР ${drr.toFixed(0)}%`,
+                severity: 'medium'
+            });
+            continue;
+        }
+
+        // Low conversion (<1%)
+        const crOrder = parseFloat(sku.crOrder || '0');
+        if (crOrder < 1 && crOrder > 0) {
+            problematic.push({
+                sku,
+                issue: `🟡 Низкая конверсия ${crOrder.toFixed(1)}%`,
+                severity: 'low'
+            });
+        }
+    }
+
+    // Sort by severity and limit
+    const severityOrder = { high: 0, medium: 1, low: 2 };
+    return problematic
+        .sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity])
+        .slice(0, limit);
 }
 
 // Format money for display
@@ -127,14 +203,7 @@ export function getTopGrowthSKUs(
     categoryId: Category,
     limit: number = 5
 ): SKUData[] {
-    const categoryMapping: Record<Category, string[]> = {
-        face: ['Лицо', 'лицо', 'Face', 'face'],
-        body: ['Тело', 'тело', 'Body', 'body'],
-        makeup: ['Макияж', 'макияж', 'Makeup', 'makeup'],
-        hair: ['Волосы', 'волосы', 'Hair', 'hair'],
-    };
-
-    const categoryNames = categoryMapping[categoryId] || [];
+    const categoryNames = CATEGORY_MAPPING[categoryId] || [];
 
     return skuData
         .filter(sku => categoryNames.some(name =>

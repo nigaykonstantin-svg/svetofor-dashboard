@@ -7,6 +7,7 @@ import { formatGoalMoney } from '@/lib/goals-utils';
 interface GoalProgressCardProps {
     progress: GoalProgress;
     managerName?: string;
+    problematicSKUs?: { sku: { sku: string; title: string }; issue: string; severity: string }[];
     onViewDetails?: () => void;
     onCreateTask?: () => void;
     compact?: boolean;
@@ -15,6 +16,7 @@ interface GoalProgressCardProps {
 export function GoalProgressCard({
     progress,
     managerName,
+    problematicSKUs,
     onViewDetails,
     onCreateTask,
     compact = false,
@@ -32,6 +34,11 @@ export function GoalProgressCard({
         at_risk: 'bg-yellow-500',
         behind: 'bg-red-500',
     }[progress.status];
+
+    // Forecast status
+    const forecastStatus = progress.projectedPercentage >= 100 ? 'good'
+        : progress.projectedPercentage >= 80 ? 'warning'
+            : 'danger';
 
     if (compact) {
         return (
@@ -110,11 +117,32 @@ export function GoalProgressCard({
                 </div>
             </div>
 
+            {/* Forecast Section */}
+            <div className={`mb-4 p-3 rounded-lg ${forecastStatus === 'good' ? 'bg-green-500/10 border border-green-500/30' :
+                    forecastStatus === 'warning' ? 'bg-yellow-500/10 border border-yellow-500/30' :
+                        'bg-red-500/10 border border-red-500/30'
+                }`}>
+                <div className="text-xs text-slate-400 mb-1">📊 Прогноз на конец месяца</div>
+                <div className="flex items-center justify-between">
+                    <span className={`font-bold ${forecastStatus === 'good' ? 'text-green-400' :
+                            forecastStatus === 'warning' ? 'text-yellow-400' :
+                                'text-red-400'
+                        }`}>
+                        {formatGoalMoney(progress.projectedTotal)} ({progress.projectedPercentage}%)
+                    </span>
+                    <span className="text-xs text-slate-400">
+                        {progress.dailyAverage > 0 && `~${formatGoalMoney(progress.dailyAverage)}/день`}
+                    </span>
+                </div>
+            </div>
+
             {/* Footer */}
             <div className="flex items-center justify-between text-xs text-slate-400 mb-3 pb-3 border-b border-slate-700">
-                <span>📅 {progress.daysLeft} дней</span>
+                <span>📅 {progress.daysLeft} дней осталось</span>
                 <span>
-                    📈 {progress.dailyTarget > 0 ? `+${formatGoalMoney(progress.dailyTarget)}/день` : 'Выполнено!'}
+                    {progress.dailyTarget > 0
+                        ? `📈 Нужно +${formatGoalMoney(progress.dailyTarget)}/день`
+                        : '✅ Выполнено!'}
                 </span>
                 <span>
                     {progress.trend === 'up' && '📈 Рост'}
@@ -122,6 +150,29 @@ export function GoalProgressCard({
                     {progress.trend === 'stable' && '➡️ Стабильно'}
                 </span>
             </div>
+
+            {/* Problematic SKUs */}
+            {problematicSKUs && problematicSKUs.length > 0 && (
+                <div className="mb-3 pb-3 border-b border-slate-700">
+                    <div className="text-xs text-slate-400 mb-2">⚠️ Требуют внимания:</div>
+                    <div className="space-y-1">
+                        {problematicSKUs.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-xs">
+                                <span className="text-white truncate max-w-[150px]" title={item.sku.title}>
+                                    {item.sku.sku}
+                                </span>
+                                <span className={
+                                    item.severity === 'high' ? 'text-red-400' :
+                                        item.severity === 'medium' ? 'text-yellow-400' :
+                                            'text-slate-400'
+                                }>
+                                    {item.issue}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-2">

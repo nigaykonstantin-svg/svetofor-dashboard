@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { upsertAnalytics, getLatestAnalyticsDate, DailyAnalytics, isSupabaseConfigured } from '@/lib/supabase';
+import { upsertAnalytics, getLatestAnalyticsDate, getLatestPowerBIDate, DailyAnalytics, isSupabaseConfigured } from '@/lib/supabase';
 
 // API to sync analytics data from WB to Supabase using reportDetailByPeriod (v5)
 // This API provides detailed sales reports per period
@@ -24,7 +24,14 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const latestDate = await getLatestAnalyticsDate();
+        const latestDailyDate = await getLatestAnalyticsDate();
+        const latestPowerBIDate = await getLatestPowerBIDate();
+
+        // Use the later of the two dates to avoid overlapping with PowerBI data
+        let latestDate = latestDailyDate;
+        if (latestPowerBIDate && (!latestDate || latestPowerBIDate > latestDate)) {
+            latestDate = latestPowerBIDate;
+        }
 
         const endDate = new Date();
         endDate.setDate(endDate.getDate() - 1);
@@ -34,9 +41,8 @@ export async function POST(request: NextRequest) {
             startDate = new Date(latestDate);
             startDate.setDate(startDate.getDate() + 1);
         } else {
-            // First sync - reportDetailByPeriod allows up to 3 years
-            startDate = new Date();
-            startDate.setFullYear(startDate.getFullYear() - 1);
+            // First sync - but we should start from a reasonable date
+            startDate = new Date('2025-12-24'); // Start after PowerBI data ends
         }
 
         if (startDate > endDate) {

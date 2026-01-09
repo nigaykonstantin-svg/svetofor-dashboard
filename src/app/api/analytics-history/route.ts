@@ -53,13 +53,22 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(cached.data);
     }
 
-    // Try PowerBI data first (3 years of enriched data with КП)
+    // Merge PowerBI data (historical with КП) and daily_analytics (fresh WB data)
     if (isSupabaseConfigured()) {
         try {
+            // Get PowerBI data (has КП, up to Dec 23)
             const powerbiData = await getPowerBIAnalyticsForPeriod(formatDate(startDate), formatDate(endDate));
 
-            if (powerbiData.length > 0) {
-                const data: DailyMetrics[] = powerbiData.map((d: PowerBIDailyMetrics) => ({
+            // Get daily_analytics data (fresh WB sync, no КП)
+            const dailyData = await getAnalyticsForPeriod(formatDate(startDate), formatDate(endDate));
+
+            // Merge: use PowerBI where available, fill gaps with daily_analytics
+            const powerbiDates = new Set(powerbiData.map(d => d.date));
+            const mergedData: DailyMetrics[] = [];
+
+            // Add all PowerBI data
+            for (const d of powerbiData) {
+                mergedData.push({
                     date: d.date,
                     orderSum: d.orderSum,
                     orderCount: d.orderCount,
@@ -76,9 +85,38 @@ export async function GET(request: NextRequest) {
                     commercialProfit: d.commercialProfit,
                     profitMargin: d.profitMargin * 100,
                     clickCount: d.clickCount,
-                }));
+                });
+            }
 
-                const totals = data.reduce(
+            // Add daily_analytics data for dates not in PowerBI
+            for (const d of dailyData) {
+                if (!powerbiDates.has(d.date)) {
+                    mergedData.push({
+                        date: d.date,
+                        orderSum: d.order_sum,
+                        orderCount: d.order_count,
+                        avgCheck: d.avg_check,
+                        openCount: d.open_count,
+                        cartCount: d.cart_count,
+                        buyoutCount: d.buyout_count,
+                        buyoutSum: d.buyout_sum,
+                        crCart: d.cr_cart,
+                        crOrder: d.cr_order,
+                        buyoutPercent: d.buyout_percent,
+                        advertSpend: d.advert_spend,
+                        drr: d.drr,
+                        commercialProfit: 0, // WB API doesn't provide КП
+                        profitMargin: 0,
+                        clickCount: 0,
+                    });
+                }
+            }
+
+            // Sort by date
+            mergedData.sort((a, b) => a.date.localeCompare(b.date));
+
+            if (mergedData.length > 0) {
+                const totals = mergedData.reduce(
                     (acc, day) => ({
                         orderSum: acc.orderSum + day.orderSum,
                         orderCount: acc.orderCount + day.orderCount,
@@ -94,67 +132,11 @@ export async function GET(request: NextRequest) {
 
                 const responseData = {
                     success: true,
-                    source: 'powerbi',
+                    source: 'merged',
                     period,
                     startDate: formatDate(startDate),
                     endDate: formatDate(endDate),
-                    daysCount: data.length,
-                    totals: {
-                        ...totals,
-                        avgCheck: totals.orderCount > 0 ? totals.orderSum / totals.orderCount : 0,
-                        crCart: totals.openCount > 0 ? (totals.cartCount / totals.openCount) * 100 : 0,
-                        crOrder: totals.cartCount > 0 ? (totals.orderCount / totals.cartCount) * 100 : 0,
-                        buyoutPercent: 100,
-                        drr: 0,
-                        profitMargin: totals.orderSum > 0 ? (totals.commercialProfit / totals.orderSum) * 100 : 0,
-                    },
-                    data,
-                };
-
-                analyticsCache.set(cacheKey, { data: responseData, timestamp: Date.now() });
-                return NextResponse.json(responseData);
-            }
-
-            // Fallback to daily_analytics if no PowerBI data
-            const supabaseData = await getAnalyticsForPeriod(formatDate(startDate), formatDate(endDate));
-
-            if (supabaseData.length > 0) {
-                const data: DailyMetrics[] = supabaseData.map((d: DailyAnalytics) => ({
-                    date: d.date,
-                    orderSum: d.order_sum,
-                    orderCount: d.order_count,
-                    avgCheck: d.avg_check,
-                    openCount: d.open_count,
-                    cartCount: d.cart_count,
-                    buyoutCount: d.buyout_count,
-                    buyoutSum: d.buyout_sum,
-                    crCart: d.cr_cart,
-                    crOrder: d.cr_order,
-                    buyoutPercent: d.buyout_percent,
-                    advertSpend: d.advert_spend,
-                    drr: d.drr,
-                }));
-
-                const totals = data.reduce(
-                    (acc, day) => ({
-                        orderSum: acc.orderSum + day.orderSum,
-                        orderCount: acc.orderCount + day.orderCount,
-                        openCount: acc.openCount + day.openCount,
-                        cartCount: acc.cartCount + day.cartCount,
-                        buyoutCount: acc.buyoutCount + day.buyoutCount,
-                        buyoutSum: acc.buyoutSum + day.buyoutSum,
-                        advertSpend: acc.advertSpend + day.advertSpend,
-                    }),
-                    { orderSum: 0, orderCount: 0, openCount: 0, cartCount: 0, buyoutCount: 0, buyoutSum: 0, advertSpend: 0 }
-                );
-
-                const responseData = {
-                    success: true,
-                    source: 'supabase',
-                    period,
-                    startDate: formatDate(startDate),
-                    endDate: formatDate(endDate),
-                    daysCount: data.length,
+                    daysCount: mergedData.length,
                     totals: {
                         ...totals,
                         avgCheck: totals.orderCount > 0 ? totals.orderSum / totals.orderCount : 0,
@@ -162,13 +144,15 @@ export async function GET(request: NextRequest) {
                         crOrder: totals.cartCount > 0 ? (totals.orderCount / totals.cartCount) * 100 : 0,
                         buyoutPercent: totals.orderCount > 0 ? (totals.buyoutCount / totals.orderCount) * 100 : 0,
                         drr: totals.orderSum > 0 ? (totals.advertSpend / totals.orderSum) * 100 : 0,
+                        profitMargin: totals.orderSum > 0 ? (totals.commercialProfit / totals.orderSum) * 100 : 0,
                     },
-                    data,
+                    data: mergedData,
                 };
 
                 analyticsCache.set(cacheKey, { data: responseData, timestamp: Date.now() });
                 return NextResponse.json(responseData);
             }
+
         } catch (error) {
             console.error('Supabase error:', error);
         }

@@ -28,7 +28,11 @@ export interface GoalProgress {
     percentage: number; // 0-100+
     remaining: number; // Amount left to reach goal
     daysLeft: number; // Days until end of period
+    daysElapsed: number; // Days since start of period
     dailyTarget: number; // Required daily sales to meet goal
+    dailyAverage: number; // Current average daily sales
+    projectedTotal: number; // Projected total at end of month
+    projectedPercentage: number; // Projected percentage at end of month
     status: GoalStatus;
     trend: 'up' | 'down' | 'stable'; // Based on recent performance
 }
