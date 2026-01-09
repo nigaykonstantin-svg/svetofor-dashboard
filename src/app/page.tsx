@@ -503,9 +503,30 @@ export default function SvetoforDashboard() {
         <div className="text-center">
           <div className="text-6xl mb-4">❌</div>
           <div className="text-red-400 text-xl mb-4">Ошибка: {error}</div>
-          <button onClick={fetchData} className="px-6 py-3 bg-emerald-600 rounded-lg hover:bg-emerald-700 transition">
-            Повторить
-          </button>
+          <div className="flex gap-4 justify-center mb-6">
+            <button onClick={fetchData} className="px-6 py-3 bg-emerald-600 rounded-lg hover:bg-emerald-700 transition">
+              Повторить
+            </button>
+          </div>
+
+          {/* Navigation links when API is down */}
+          <div className="mt-8 text-slate-400 text-sm mb-4">
+            Пока API недоступен, вы можете перейти:
+          </div>
+          <div className="flex gap-4 justify-center">
+            <button
+              onClick={() => router.push('/goals')}
+              className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg hover:from-emerald-700 hover:to-teal-700 transition flex items-center gap-2"
+            >
+              🎯 Цели
+            </button>
+            <button
+              onClick={() => router.push('/tasks')}
+              className="px-6 py-3 bg-slate-800 rounded-lg hover:bg-slate-700 transition flex items-center gap-2"
+            >
+              📋 Задачи
+            </button>
+          </div>
         </div>
       </div>
     );
