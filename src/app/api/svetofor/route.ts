@@ -171,38 +171,59 @@ export async function GET(request: Request) {
             const stockCoverDays = ordersPerDay > 0 ? effectiveStock / ordersPerDay : 999;
 
             const signals: any[] = [];
+            const price = stock?.price || 0;
 
             // OOS сейчас
             if (stockTotal === 0 && ordersPerDay > 0) {
+                const lostPerDay = ordersPerDay * price;
                 signals.push({
                     type: 'OOS_NOW',
                     priority: 'critical',
                     message: `Товар закончился! Продажи/день: ${ordersPerDay.toFixed(1)}`,
+                    impactPerDay: lostPerDay,
+                    impactPerWeek: lostPerDay * 7,
+                    urgency: 'today',
+                    action: { type: 'restock', priority: 'today', details: 'Срочно отгрузить товар на склад WB' },
                 });
             }
             // OOS скоро (< 7 дней)
             else if (stockCoverDays < 7) {
+                const lostPerDay = ordersPerDay * price;
                 signals.push({
                     type: 'OOS_SOON',
                     priority: 'critical',
                     message: `Закончится через ${stockCoverDays.toFixed(0)} дней`,
+                    impactPerDay: lostPerDay,
+                    impactPerWeek: lostPerDay * 7,
+                    urgency: 'today',
+                    action: { type: 'restock', priority: 'today', details: 'Срочно запланировать отгрузку' },
                 });
             }
             // OOS скоро (< 14 дней)
             else if (stockCoverDays < 14) {
+                const lostPerDay = ordersPerDay * price;
                 signals.push({
                     type: 'OOS_SOON',
                     priority: 'warning',
                     message: `Запас на ${stockCoverDays.toFixed(0)} дней`,
+                    impactPerDay: lostPerDay,
+                    impactPerWeek: lostPerDay * 7,
+                    urgency: 'this_week',
+                    action: { type: 'restock', priority: 'this_week', details: 'Запланировать отгрузку в ближайшие дни' },
                 });
             }
 
             // Overstock
             if (stockCoverDays > 90 && stockTotal > 0) {
+                const frozenCapital = stockTotal * price;
                 signals.push({
                     type: 'OVERSTOCK',
                     priority: 'warning',
                     message: `Запас на ${stockCoverDays.toFixed(0)} дней`,
+                    impactPerDay: frozenCapital / 90, // стоимость хранения примерно
+                    impactPerWeek: (frozenCapital / 90) * 7,
+                    urgency: 'this_week',
+                    action: { type: 'discount', priority: 'this_week', details: 'Установить скидку для ускорения оборота' },
                 });
             }
 
@@ -210,28 +231,43 @@ export async function GET(request: Request) {
             if (funnel && funnel.openCount > 500) {
                 // LOW_CTR: много показов, мало добавлений в корзину
                 if (funnel.crCart < 4) {
+                    const potentialOrders = funnel.openCount * 0.04 - funnel.cartCount; // потенциал при норм CTR
                     signals.push({
                         type: 'LOW_CTR',
                         priority: 'warning',
                         message: `Низкий CTR: ${funnel.crCart.toFixed(1)}% (показы: ${funnel.openCount.toLocaleString()})`,
+                        impactPerDay: (potentialOrders * price * 0.25) / validPeriod, // ~25% конверсия в заказ
+                        impactPerWeek: potentialOrders * price * 0.25 / validPeriod * 7,
+                        urgency: 'this_week',
+                        action: { type: 'update_content', priority: 'this_week', details: 'Обновить главное фото и заголовок' },
                     });
                 }
 
                 // LOW_CR_CART: добавляют в корзину, но не заказывают
                 if (funnel.crOrder < 25 && funnel.cartCount > 50) {
+                    const potentialOrders = funnel.cartCount * 0.25 - funnel.orderCount;
                     signals.push({
                         type: 'LOW_CR',
                         priority: 'warning',
                         message: `Низкий CR заказ: ${funnel.crOrder.toFixed(0)}% (корзина→заказ)`,
+                        impactPerDay: (potentialOrders * price) / validPeriod,
+                        impactPerWeek: potentialOrders * price / validPeriod * 7,
+                        urgency: 'this_week',
+                        action: { type: 'optimize_price', priority: 'this_week', details: 'Проверить цену и описание товара' },
                     });
                 }
 
                 // LOW_BUYOUT: заказывают, но не выкупают
                 if (funnel.buyoutPercent < 70 && funnel.orderCount > 20) {
+                    const lostBuyout = funnel.orderSum * (0.70 - funnel.buyoutPercent / 100);
                     signals.push({
                         type: 'LOW_BUYOUT',
                         priority: 'warning',
                         message: `Низкий выкуп: ${funnel.buyoutPercent.toFixed(0)}%`,
+                        impactPerDay: lostBuyout / validPeriod,
+                        impactPerWeek: lostBuyout / validPeriod * 7,
+                        urgency: 'this_week',
+                        action: { type: 'update_content', priority: 'this_week', details: 'Улучшить описание, добавить отзывы' },
                     });
                 }
 
@@ -241,6 +277,10 @@ export async function GET(request: Request) {
                         type: 'ABOVE_MARKET',
                         priority: 'success',
                         message: `🔥 Топ: CTR ${funnel.crCart.toFixed(0)}%, CR ${funnel.crOrder.toFixed(0)}%`,
+                        impactPerDay: funnel.orderSum / validPeriod,
+                        impactPerWeek: funnel.orderSum / validPeriod * 7,
+                        urgency: 'this_month',
+                        action: { type: 'optimize_price', priority: 'this_week', details: 'Можно поднять цену на 5-10%' },
                     });
                 }
             }
@@ -260,12 +300,48 @@ export async function GET(request: Request) {
                         type: 'HIGH_DRR',
                         priority: 'critical',
                         message: `Критичный ДРР: ${drrValue.toFixed(0)}% — убыточная реклама!`,
+                        impactPerDay: advertSpend ? advertSpend / 30 : 0,
+                        impactPerWeek: advertSpend ? (advertSpend / 30) * 7 : 0,
+                        urgency: 'today',
+                        action: { type: 'pause_ads', priority: 'today', details: 'Остановить рекламу или снизить ставки' },
                     });
                 } else if (drrValue >= 30) {
                     signals.push({
                         type: 'HIGH_DRR',
                         priority: 'warning',
                         message: `Высокий ДРР: ${drrValue.toFixed(0)}% — оптимизировать рекламу`,
+                        impactPerDay: advertSpend ? advertSpend / 30 : 0,
+                        impactPerWeek: advertSpend ? (advertSpend / 30) * 7 : 0,
+                        urgency: 'this_week',
+                        action: { type: 'pause_ads', priority: 'this_week', details: 'Оптимизировать рекламные кампании' },
+                    });
+                }
+            }
+
+            // ============ FALLING_SALES SIGNAL ============
+            if (funnel?.deltaOrderSum !== null && funnel?.deltaOrderSum !== undefined) {
+                const salesDrop = funnel.deltaOrderSum;
+                if (salesDrop < -40) {
+                    const lostRevenue = Math.abs((funnel.pastOrderSum || 0) - (funnel.orderSum || 0));
+                    signals.push({
+                        type: 'FALLING_SALES',
+                        priority: 'critical',
+                        message: `📉 Критичное падение: ${salesDrop.toFixed(0)}% vs прошлый период`,
+                        impactPerDay: lostRevenue / validPeriod,
+                        impactPerWeek: (lostRevenue / validPeriod) * 7,
+                        urgency: 'today',
+                        action: { type: 'review_sku', priority: 'today', details: 'Срочно проанализировать причины падения' },
+                    });
+                } else if (salesDrop < -20) {
+                    const lostRevenue = Math.abs((funnel.pastOrderSum || 0) - (funnel.orderSum || 0));
+                    signals.push({
+                        type: 'FALLING_SALES',
+                        priority: 'warning',
+                        message: `📉 Падение продаж: ${salesDrop.toFixed(0)}% vs прошлый период`,
+                        impactPerDay: lostRevenue / validPeriod,
+                        impactPerWeek: (lostRevenue / validPeriod) * 7,
+                        urgency: 'this_week',
+                        action: { type: 'review_sku', priority: 'this_week', details: 'Проанализировать причины падения продаж' },
                     });
                 }
             }
@@ -328,12 +404,66 @@ export async function GET(request: Request) {
             OOS_NOW: analyses.filter(a => a.signals.some((s: any) => s.type === 'OOS_NOW')),
             OOS_SOON: analyses.filter(a => a.signals.some((s: any) => s.type === 'OOS_SOON')),
             HIGH_DRR: analyses.filter(a => a.signals.some((s: any) => s.type === 'HIGH_DRR')),
+            FALLING_SALES: analyses.filter(a => a.signals.some((s: any) => s.type === 'FALLING_SALES')),
             LOW_CTR: analyses.filter(a => a.signals.some((s: any) => s.type === 'LOW_CTR')),
             LOW_CR: analyses.filter(a => a.signals.some((s: any) => s.type === 'LOW_CR')),
             LOW_BUYOUT: analyses.filter(a => a.signals.some((s: any) => s.type === 'LOW_BUYOUT')),
             OVERSTOCK: analyses.filter(a => a.signals.some((s: any) => s.type === 'OVERSTOCK')),
             ABOVE_MARKET: analyses.filter(a => a.signals.some((s: any) => s.type === 'ABOVE_MARKET')),
         };
+
+        // ============ COMBO SIGNALS DETECTION ============
+        const comboSignals: any[] = [];
+
+        // TOXIC_SKU: LOW_CR + HIGH_DRR + FALLING_SALES — убыточный товар 
+        const toxicSkus = analyses.filter(a => {
+            const types = new Set(a.signals.map((s: any) => s.type));
+            return (types.has('LOW_CR') || types.has('LOW_CTR')) &&
+                types.has('HIGH_DRR') &&
+                types.has('FALLING_SALES');
+        });
+        if (toxicSkus.length > 0) {
+            comboSignals.push({
+                type: 'TOXIC_SKU',
+                label: '☠️ Токсичные товары',
+                priority: 'critical',
+                count: toxicSkus.length,
+                message: 'Низкая конверсия + убыточная реклама + падение продаж',
+                skus: toxicSkus.map(s => ({ nmId: s.nmId, sku: s.sku, title: s.title })),
+            });
+        }
+
+        // HERO_AT_RISK: ABOVE_MARKET + OOS_SOON — топ товар заканчивается
+        const heroAtRiskSkus = analyses.filter(a => {
+            const types = new Set(a.signals.map((s: any) => s.type));
+            return types.has('ABOVE_MARKET') && (types.has('OOS_SOON') || types.has('OOS_NOW'));
+        });
+        if (heroAtRiskSkus.length > 0) {
+            comboSignals.push({
+                type: 'HERO_AT_RISK',
+                label: '🏆⚠️ Топы под угрозой',
+                priority: 'critical',
+                count: heroAtRiskSkus.length,
+                message: 'Топ-товары скоро закончатся! Срочно пополнить',
+                skus: heroAtRiskSkus.map(s => ({ nmId: s.nmId, sku: s.sku, title: s.title })),
+            });
+        }
+
+        // FROZEN_CAPITAL: OVERSTOCK + LOW_CR — заморозка денег
+        const frozenCapitalSkus = analyses.filter(a => {
+            const types = new Set(a.signals.map((s: any) => s.type));
+            return types.has('OVERSTOCK') && (types.has('LOW_CR') || types.has('LOW_CTR'));
+        });
+        if (frozenCapitalSkus.length > 0) {
+            comboSignals.push({
+                type: 'FROZEN_CAPITAL',
+                label: '🧊 Заморозка капитала',
+                priority: 'warning',
+                count: frozenCapitalSkus.length,
+                message: 'Много остатков + низкая конверсия = деньги заморожены',
+                skus: frozenCapitalSkus.map(s => ({ nmId: s.nmId, sku: s.sku, title: s.title })),
+            });
+        }
 
         return NextResponse.json({
             success: true,
@@ -344,12 +474,14 @@ export async function GET(request: Request) {
                 OOS_NOW: clusters.OOS_NOW.length,
                 OOS_SOON: clusters.OOS_SOON.length,
                 HIGH_DRR: clusters.HIGH_DRR.length,
+                FALLING_SALES: clusters.FALLING_SALES.length,
                 LOW_CTR: clusters.LOW_CTR.length,
                 LOW_CR: clusters.LOW_CR.length,
                 LOW_BUYOUT: clusters.LOW_BUYOUT.length,
                 OVERSTOCK: clusters.OVERSTOCK.length,
                 ABOVE_MARKET: clusters.ABOVE_MARKET.length,
             },
+            comboSignals,
             data: clusters,
         });
 

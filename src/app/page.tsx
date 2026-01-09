@@ -6,7 +6,7 @@ import { EnhancedAiPanel } from '@/components/ai';
 import { SettingsPanel } from '@/components/panels';
 import { AnalyticsChart, DeltaBadge } from '@/components/charts';
 import { CommandPalette, useCommandPalette } from '@/components/command-palette';
-import { DashboardHeader } from '@/components/layout';
+import { DashboardHeader, AppLayout } from '@/components/layout';
 import { KPICards, SignalClusters, CategoryTabs, SKUTableSection, CLUSTER_CONFIG } from '@/components/dashboard';
 import { TaskModal, TaskControlPanel, TaskDetailModal, TaskList, useTasks, Task, TaskStatus, TaskSKU } from '@/components/tasks';
 import { GoalsSummaryBar, GoalsManagementModal } from '@/components/goals';
@@ -500,643 +500,657 @@ export default function SvetoforDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      {/* Header */}
-      <DashboardHeader
-        totalSKUs={data?.totalSKUs}
-        timestamp={data?.timestamp}
-        period={period}
-        onPeriodChange={setPeriod}
-        customDateRange={customDateRange}
-        onDateRangeChange={setCustomDateRange}
-        comparisonEnabled={comparisonEnabled}
-        onComparisonToggle={setComparisonEnabled}
-        onRefresh={fetchData}
-        onOpenAiPanel={() => setShowAiPanel(true)}
-        onOpenSettings={() => setShowSettings(true)}
-        onOpenCommandPalette={commandPalette.open}
-      />
-
-      <main className="p-6">
-        {/* Category Tabs */}
-        <CategoryTabs
-          categories={CATEGORIES}
-          selectedCategory={selectedCategory}
-          onCategorySelect={setSelectedCategory}
+    <AppLayout
+      signalCounts={data ? {
+        OOS_NOW: data.data.OOS_NOW?.length,
+        OOS_SOON: data.data.OOS_SOON?.length,
+        LOW_CTR: data.data.LOW_CTR?.length,
+        HIGH_DRR: data.data.HIGH_DRR?.length,
+        OVERSTOCK: data.data.OVERSTOCK?.length,
+      } : undefined}
+      onSignalClick={(signal) => {
+        setSelectedCluster(signal);
+        setShowAllSKUs(false);
+      }}
+      selectedSignal={selectedCluster}
+    >
+      <div className="min-h-screen bg-slate-950 text-white">
+        <DashboardHeader
+          totalSKUs={data?.totalSKUs}
+          timestamp={data?.timestamp}
+          period={period}
+          onPeriodChange={setPeriod}
+          customDateRange={customDateRange}
+          onDateRangeChange={setCustomDateRange}
+          comparisonEnabled={comparisonEnabled}
+          onComparisonToggle={setComparisonEnabled}
+          onRefresh={fetchData}
+          onOpenAiPanel={() => setShowAiPanel(true)}
+          onOpenSettings={() => setShowSettings(true)}
+          onOpenCommandPalette={commandPalette.open}
         />
 
-        {/* KPI Cards */}
-        <KPICards kpis={kpis} period={period} />
+        <main className="p-6">
+          {/* Category Tabs */}
+          <CategoryTabs
+            categories={CATEGORIES}
+            selectedCategory={selectedCategory}
+            onCategorySelect={setSelectedCategory}
+          />
 
-        {/* Analytics Chart */}
-        <div className="mb-6">
-          <AnalyticsChart category={selectedCategory} period={period} />
-        </div>
+          {/* KPI Cards */}
+          <KPICards kpis={kpis} period={period} />
 
-        {/* Signal Clusters */}
-        <SignalClusters
-          clusters={categoryClusters}
-          selectedCluster={selectedCluster}
-          showAllSKUs={showAllSKUs}
-          onClusterSelect={(cluster) => { setSelectedCluster(cluster); setShowAllSKUs(false); }}
-          onShowAllToggle={() => { setShowAllSKUs(!showAllSKUs); setSelectedCluster(null); }}
-        />
-
-        {/* Task Control Panel - for admins/category managers */}
-        {canSeeTaskControl && userTasks.length > 0 && (
+          {/* Analytics Chart */}
           <div className="mb-6">
-            <TaskControlPanel
-              tasks={userTasks}
-              onFilterByStatus={() => { }}
-              onFilterByAssignee={() => { }}
-              onViewAllTasks={() => router.push('/tasks')}
+            <AnalyticsChart category={selectedCategory} period={period} />
+          </div>
+
+          {/* Signal Clusters */}
+          <SignalClusters
+            clusters={categoryClusters}
+            selectedCluster={selectedCluster}
+            showAllSKUs={showAllSKUs}
+            onClusterSelect={(cluster) => { setSelectedCluster(cluster); setShowAllSKUs(false); }}
+            onShowAllToggle={() => { setShowAllSKUs(!showAllSKUs); setSelectedCluster(null); }}
+          />
+
+          {/* Task Control Panel - for admins/category managers */}
+          {canSeeTaskControl && userTasks.length > 0 && (
+            <div className="mb-6">
+              <TaskControlPanel
+                tasks={userTasks}
+                onFilterByStatus={() => { }}
+                onFilterByAssignee={() => { }}
+                onViewAllTasks={() => router.push('/tasks')}
+              />
+            </div>
+          )}
+
+          {/* Quick Tasks Link */}
+          {user && (
+            <div className="mb-4 flex justify-end">
+              <button
+                onClick={() => router.push('/tasks')}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition flex items-center gap-2 text-sm"
+              >
+                <span>📋</span>
+                {canSeeTaskControl ? 'Управление задачами' : 'Мои задачи'}
+                {taskStats.total > 0 && (
+                  <span className="bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    {taskStats.total - taskStats.done}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Goal Progress Bar - show when category is selected */}
+          {selectedCategory !== 'Все' && (selectedCluster || showAllSKUs) && (
+            <GoalsSummaryBar
+              progress={currentGoalProgress}
+              onManageGoals={canCreateTasks(user?.role || 'pending') ? () => setShowGoalsModal(true) : undefined}
+              loading={goalsLoading}
             />
-          </div>
-        )}
+          )}
 
-        {/* Quick Tasks Link */}
-        {user && (
-          <div className="mb-4 flex justify-end">
-            <button
-              onClick={() => router.push('/tasks')}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg transition flex items-center gap-2 text-sm"
-            >
-              <span>📋</span>
-              {canSeeTaskControl ? 'Управление задачами' : 'Мои задачи'}
-              {taskStats.total > 0 && (
-                <span className="bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full">
-                  {taskStats.total - taskStats.done}
-                </span>
+          {/* Search and Filters */}
+          {(selectedCluster || showAllSKUs) && (
+            <div className="bg-slate-900 rounded-xl p-4 mb-4">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex-1 min-w-64">
+                  <input
+                    type="text"
+                    placeholder="🔍 Поиск по артикулу, названию, nmId..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`px-4 py-2 rounded-lg transition flex items-center gap-2 text-sm ${showFilters ? 'bg-purple-600 text-white' : 'bg-slate-800 hover:bg-slate-700'
+                    }`}
+                >
+                  <span>🎛️</span> Фильтры
+                </button>
+                <button
+                  onClick={() => setShowColumns(!showColumns)}
+                  className={`px-4 py-2 rounded-lg transition flex items-center gap-2 text-sm ${showColumns ? 'bg-blue-600 text-white' : 'bg-slate-800 hover:bg-slate-700'
+                    }`}
+                >
+                  <span>📋</span> Колонки
+                </button>
+                <div className="text-slate-400 text-sm">
+                  Найдено: <span className="text-white font-semibold">{filteredSKUs.length}</span> SKU
+                  {selectedSKUs.size > 0 && (
+                    <span className="ml-2 text-emerald-400">
+                      ({selectedSKUs.size} выбрано)
+                    </span>
+                  )}
+                </div>
+                {selectedSKUs.size > 0 && (
+                  <button
+                    onClick={() => setShowTaskModal(true)}
+                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg transition flex items-center gap-2 text-sm"
+                  >
+                    <span>📤</span> Создать задачу
+                  </button>
+                )}
+                <button
+                  onClick={exportToExcel}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg transition flex items-center gap-2 text-sm"
+                >
+                  <span>📥</span> Экспорт
+                </button>
+              </div>
+
+              {/* Column Selector */}
+              {showColumns && (
+                <div className="mt-4 pt-4 border-t border-slate-700">
+                  <div className="text-sm text-slate-400 mb-2">Показать колонки:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: 'sku', label: 'Артикул' },
+                      { key: 'title', label: 'Название' },
+                      { key: 'brandName', label: 'Бренд' },
+                      { key: 'subjectName', label: 'Предмет' },
+                      { key: 'category', label: 'Категория' },
+                      { key: 'subCategory', label: 'Суб-категория' },
+                      { key: 'brandManager', label: 'Бренд-менеджер' },
+                      { key: 'categoryManager', label: 'Катег. менедж.' },
+                      { key: 'stock', label: 'Остаток' },
+                      { key: 'inTransit', label: 'В пути' },
+                      { key: 'stocksWb', label: 'Остаток WB' },
+                      { key: 'stocksMp', label: 'Остаток МП' },
+                      { key: 'salesPerDay', label: 'Продаж/день' },
+                      { key: 'coverDays', label: 'Дней' },
+                      { key: 'views', label: 'Просмотры' },
+                      { key: 'cartCount', label: 'В корзину' },
+                      { key: 'orderCount', label: 'Заказы шт' },
+                      { key: 'buyoutCount', label: 'Выкупы шт' },
+                      { key: 'buyoutSum', label: 'Выкупы ₽' },
+                      { key: 'ctr', label: 'CTR %' },
+                      { key: 'crCart', label: 'CR корзина' },
+                      { key: 'crOrder', label: 'CR заказ' },
+                      { key: 'buyout', label: 'Выкуп %' },
+                      { key: 'drr', label: 'ДРР' },
+                      { key: 'advertSpend', label: 'Расход рек.' },
+                      { key: 'orderSum', label: 'Выручка' },
+                      { key: 'signal', label: 'Сигнал' },
+                    ].map(col => (
+                      <label
+                        key={col.key}
+                        className={`px-3 py-1 rounded-full text-sm cursor-pointer transition ${columns[col.key as keyof typeof columns]
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                          }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={columns[col.key as keyof typeof columns]}
+                          onChange={(e) => setColumns({ ...columns, [col.key]: e.target.checked })}
+                          className="sr-only"
+                        />
+                        {col.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
               )}
-            </button>
-          </div>
-        )}
 
-        {/* Goal Progress Bar - show when category is selected */}
-        {selectedCategory !== 'Все' && (selectedCluster || showAllSKUs) && (
-          <GoalsSummaryBar
-            progress={currentGoalProgress}
-            onManageGoals={canCreateTasks(user?.role || 'pending') ? () => setShowGoalsModal(true) : undefined}
-            loading={goalsLoading}
+              {/* Expandable Filter Panel */}
+              {showFilters && (
+                <div className="mt-4 pt-4 border-t border-slate-700 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Остаток</label>
+                    <div className="flex gap-1">
+                      <input
+                        type="number"
+                        placeholder="от"
+                        value={filters.stockMin}
+                        onChange={(e) => setFilters({ ...filters, stockMin: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                      <input
+                        type="number"
+                        placeholder="до"
+                        value={filters.stockMax}
+                        onChange={(e) => setFilters({ ...filters, stockMax: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Дней покрытия</label>
+                    <div className="flex gap-1">
+                      <input
+                        type="number"
+                        placeholder="от"
+                        value={filters.daysMin}
+                        onChange={(e) => setFilters({ ...filters, daysMin: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                      <input
+                        type="number"
+                        placeholder="до"
+                        value={filters.daysMax}
+                        onChange={(e) => setFilters({ ...filters, daysMax: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">CTR %</label>
+                    <div className="flex gap-1">
+                      <input
+                        type="number"
+                        placeholder="от"
+                        value={filters.ctrMin}
+                        onChange={(e) => setFilters({ ...filters, ctrMin: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                      <input
+                        type="number"
+                        placeholder="до"
+                        value={filters.ctrMax}
+                        onChange={(e) => setFilters({ ...filters, ctrMax: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">CR %</label>
+                    <div className="flex gap-1">
+                      <input
+                        type="number"
+                        placeholder="от"
+                        value={filters.crMin}
+                        onChange={(e) => setFilters({ ...filters, crMin: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                      <input
+                        type="number"
+                        placeholder="до"
+                        value={filters.crMax}
+                        onChange={(e) => setFilters({ ...filters, crMax: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">ДРР %</label>
+                    <div className="flex gap-1">
+                      <input
+                        type="number"
+                        placeholder="от"
+                        value={filters.drrMin}
+                        onChange={(e) => setFilters({ ...filters, drrMin: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                      <input
+                        type="number"
+                        placeholder="до"
+                        value={filters.drrMax}
+                        onChange={(e) => setFilters({ ...filters, drrMax: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Продаж/день</label>
+                    <div className="flex gap-1">
+                      <input
+                        type="number"
+                        placeholder="от"
+                        value={filters.salesMin}
+                        onChange={(e) => setFilters({ ...filters, salesMin: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                      <input
+                        type="number"
+                        placeholder="до"
+                        value={filters.salesMax}
+                        onChange={(e) => setFilters({ ...filters, salesMax: e.target.value })}
+                        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-span-full flex justify-end">
+                    <button
+                      onClick={() => setFilters({ stockMin: '', stockMax: '', daysMin: '', daysMax: '', ctrMin: '', ctrMax: '', crMin: '', crMax: '', drrMin: '', drrMax: '', salesMin: '', salesMax: '' })}
+                      className="px-3 py-1 text-sm text-slate-400 hover:text-white transition"
+                    >
+                      ✕ Сбросить фильтры
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Data Table */}
+          {(selectedCluster || showAllSKUs) && filteredSKUs.length > 0 && (
+            <div className="bg-slate-900 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-800 text-slate-400">
+                    <tr>
+                      <th className="p-3 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedSKUs.size === filteredSKUs.length && filteredSKUs.length > 0}
+                          onChange={selectAllVisible}
+                          className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </th>
+                      {columns.sku && <th className="text-left p-3 cursor-pointer hover:text-white" onClick={() => handleSort('sku')}>Артикул {sortField === 'sku' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
+                      {columns.title && <th className="text-left p-3 cursor-pointer hover:text-white" onClick={() => handleSort('title')}>Название {sortField === 'title' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
+                      {columns.brandName && <th className="text-left p-3">Бренд</th>}
+                      {columns.subjectName && <th className="text-left p-3">Предмет</th>}
+                      {columns.category && <th className="text-left p-3">Категория</th>}
+                      {columns.subCategory && <th className="text-left p-3">Суб-категория</th>}
+                      {columns.brandManager && <th className="text-left p-3">Бренд-менеджер</th>}
+                      {columns.categoryManager && <th className="text-left p-3">Катег. менедж.</th>}
+                      {columns.stock && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('stockTotal')}>Остаток {sortField === 'stockTotal' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
+                      {columns.inTransit && <th className="text-right p-3">В пути</th>}
+                      {columns.stocksWb && <th className="text-right p-3">Ост. WB</th>}
+                      {columns.stocksMp && <th className="text-right p-3">Ост. МП</th>}
+                      {columns.salesPerDay && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('ordersPerDay')}>Продаж/день {sortField === 'ordersPerDay' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
+                      {columns.coverDays && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('stockCoverDays')}>Дней {sortField === 'stockCoverDays' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
+                      {columns.views && <th className="text-right p-3">Просмотры</th>}
+                      {columns.cartCount && <th className="text-right p-3">В корзину</th>}
+                      {columns.orderCount && <th className="text-right p-3">Заказы шт</th>}
+                      {columns.buyoutCount && <th className="text-right p-3">Выкупы шт</th>}
+                      {columns.buyoutSum && <th className="text-right p-3">Выкупы ₽</th>}
+                      {columns.ctr && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('crCart')}>CTR% {sortField === 'crCart' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
+                      {columns.crCart && <th className="text-right p-3">CR корзина</th>}
+                      {columns.crOrder && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('crOrder')}>CR заказ {sortField === 'crOrder' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
+                      {columns.buyout && <th className="text-right p-3">Выкуп%</th>}
+                      {columns.drr && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('drr')}>ДРР {sortField === 'drr' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
+                      {columns.advertSpend && <th className="text-right p-3">Расход рек.</th>}
+                      {columns.orderSum && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('orderSum')}>Выручка {sortField === 'orderSum' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
+                      {columns.signal && <th className="text-left p-3">Сигнал</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedSKUs.map((item) => {
+                      const coverDays = parseFloat(item.stockCoverDays) || 0;
+                      const drrVal = parseFloat(item.drr || '0');
+
+                      return (
+                        <tr
+                          key={item.nmId}
+                          className={`border-b border-slate-800 hover:bg-slate-800/50 transition ${selectedSKUs.has(item.nmId) ? 'bg-emerald-900/20' : ''}`}
+                        >
+                          <td className="p-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedSKUs.has(item.nmId)}
+                              onChange={() => toggleSKU(item.nmId)}
+                              className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                            />
+                          </td>
+                          {columns.sku && (
+                            <td className="p-3 font-mono text-xs">
+                              <a
+                                href={`https://www.wildberries.ru/catalog/${item.nmId}/detail.aspx`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-slate-400 hover:text-emerald-400 transition"
+                              >
+                                {item.sku}
+                              </a>
+                            </td>
+                          )}
+                          {columns.title && (
+                            <td className="p-3 max-w-xs truncate" title={item.title}>
+                              <a
+                                href={`https://www.wildberries.ru/catalog/${item.nmId}/detail.aspx`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-emerald-400 transition"
+                              >
+                                {item.title}
+                              </a>
+                            </td>
+                          )}
+                          {columns.brandName && <td className="p-3 text-slate-400">{item.brandName || '—'}</td>}
+                          {columns.subjectName && <td className="p-3 text-slate-400">{item.subjectName || '—'}</td>}
+                          {columns.category && <td className="p-3 text-slate-400">{item.category || '—'}</td>}
+                          {columns.subCategory && <td className="p-3 text-slate-400">{item.subCategory || '—'}</td>}
+                          {columns.brandManager && <td className="p-3 text-purple-400 text-sm">{item.brandManager || '—'}</td>}
+                          {columns.categoryManager && <td className="p-3 text-cyan-400 text-sm">{item.categoryManager || '—'}</td>}
+                          {columns.stock && <td className="p-3 text-right font-mono">{item.stockTotal.toLocaleString()}</td>}
+                          {columns.inTransit && <td className="p-3 text-right font-mono text-blue-400">{item.inTransit > 0 ? `+${item.inTransit}` : '—'}</td>}
+                          {columns.stocksWb && <td className="p-3 text-right font-mono">{(item.stocksWb || 0).toLocaleString()}</td>}
+                          {columns.stocksMp && <td className="p-3 text-right font-mono">{(item.stocksMp || 0).toLocaleString()}</td>}
+                          {columns.salesPerDay && <td className="p-3 text-right font-mono">{item.ordersPerDay}</td>}
+                          {columns.coverDays && (
+                            <td className={`p-3 text-right font-mono font-semibold ${coverDays < 7 ? 'text-red-400' : coverDays < 14 ? 'text-orange-400' : coverDays > 90 ? 'text-blue-400' : 'text-green-400'
+                              }`}>
+                              {coverDays > 900 ? '∞' : item.stockCoverDays}
+                            </td>
+                          )}
+                          {columns.views && <td className="p-3 text-right font-mono">{(item.openCount || 0).toLocaleString()}</td>}
+                          {columns.cartCount && <td className="p-3 text-right font-mono">{(item.cartCount || 0).toLocaleString()}</td>}
+                          {columns.orderCount && (
+                            <td className="p-3 text-right font-mono">
+                              <div className="flex flex-col items-end">
+                                <span>{(item.orderCount || 0).toLocaleString()}</span>
+                                {comparisonEnabled && item.deltaOrderCount !== undefined && item.deltaOrderCount !== null && (
+                                  <DeltaBadge value={item.deltaOrderCount} format="percent" size="sm" />
+                                )}
+                              </div>
+                            </td>
+                          )}
+                          {columns.buyoutCount && <td className="p-3 text-right font-mono">{(item.buyoutCount || 0).toLocaleString()}</td>}
+                          {columns.buyoutSum && <td className="p-3 text-right font-mono">{item.buyoutSum ? formatMoney(item.buyoutSum) + ' ₽' : '—'}</td>}
+                          {columns.ctr && (
+                            <td className={`p-3 text-right font-mono ${parseFloat(item.crCart || '0') < 4 ? 'text-yellow-400' : 'text-slate-300'}`}>
+                              <div className="flex flex-col items-end">
+                                <span>{item.crCart ? `${item.crCart}%` : '—'}</span>
+                                {comparisonEnabled && item.deltaCrCart && (
+                                  <DeltaBadge value={item.deltaCrCart} format="points" size="sm" />
+                                )}
+                              </div>
+                            </td>
+                          )}
+                          {columns.crCart && <td className="p-3 text-right font-mono text-slate-300">{item.crCart ? `${item.crCart}%` : '—'}</td>}
+                          {columns.crOrder && (
+                            <td className={`p-3 text-right font-mono ${parseFloat(item.crOrder || '0') < 25 ? 'text-yellow-400' : 'text-slate-300'}`}>
+                              <div className="flex flex-col items-end">
+                                <span>{item.crOrder ? `${item.crOrder}%` : '—'}</span>
+                                {comparisonEnabled && item.deltaCrOrder && (
+                                  <DeltaBadge value={item.deltaCrOrder} format="points" size="sm" />
+                                )}
+                              </div>
+                            </td>
+                          )}
+                          {columns.buyout && <td className="p-3 text-right font-mono">{item.buyoutPercent ? `${item.buyoutPercent}%` : '—'}</td>}
+                          {columns.drr && (
+                            <td className={`p-3 text-right font-mono ${drrVal > 50 ? 'text-red-400 font-bold' : drrVal > 30 ? 'text-orange-400' : drrVal > 0 ? 'text-slate-300' : 'text-slate-600'
+                              }`}>
+                              {item.drr ? `${item.drr}%` : '—'}
+                            </td>
+                          )}
+                          {columns.advertSpend && <td className="p-3 text-right font-mono">{item.advertSpend ? `${formatMoney(parseFloat(item.advertSpend))} ₽` : '—'}</td>}
+                          {columns.orderSum && (
+                            <td className="p-3 text-right font-mono">
+                              <div className="flex flex-col items-end">
+                                <span>{item.orderSum > 0 ? formatMoney(item.orderSum) + ' ₽' : '—'}</span>
+                                {comparisonEnabled && item.deltaOrderSum !== undefined && item.deltaOrderSum !== null && (
+                                  <DeltaBadge value={item.deltaOrderSum} format="percent" size="sm" />
+                                )}
+                              </div>
+                            </td>
+                          )}
+                          {columns.signal && (
+                            <td className="p-3">
+                              {item.signals[0] && (
+                                <span className={`inline-block px-2 py-1 rounded text-xs ${item.signals[0].priority === 'critical' ? 'bg-red-500/20 text-red-400' :
+                                  item.signals[0].priority === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
+                                    'bg-green-500/20 text-green-400'
+                                  }`}>
+                                  {item.signals[0].type}
+                                </span>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 bg-slate-800/50 border-t border-slate-700">
+                  <div className="text-slate-400 text-sm">
+                    Показано {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredSKUs.length)} из {filteredSKUs.length} SKU
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      «
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      ←
+                    </button>
+                    <span className="px-3 py-1 text-sm">
+                      <span className="text-white font-semibold">{currentPage}</span>
+                      <span className="text-slate-500"> / {totalPages}</span>
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      →
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      »
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!selectedCluster && !showAllSKUs && (
+            <div className="text-center py-16 text-slate-500">
+              <div className="text-5xl mb-4">👆</div>
+              <div className="text-lg">Выберите сигнал или нажмите "Показать все SKU"</div>
+            </div>
+          )}
+        </main>
+
+        {/* Task Creation Modal - using new modular component */}
+        <TaskModal
+          isOpen={showTaskModal}
+          onClose={() => setShowTaskModal(false)}
+          selectedSKUs={selectedSKUsForTask}
+          onCreateTask={handleCreateTask}
+        />
+
+        {/* Task Detail Modal */}
+        {selectedTaskForDetail && (
+          <TaskDetailModal
+            task={selectedTaskForDetail}
+            isOpen={true}
+            onClose={() => setSelectedTaskForDetail(null)}
+            onUpdateStatus={handleUpdateTaskStatus}
+            onDelete={deleteTask}
           />
         )}
 
-        {/* Search and Filters */}
-        {(selectedCluster || showAllSKUs) && (
-          <div className="bg-slate-900 rounded-xl p-4 mb-4">
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex-1 min-w-64">
-                <input
-                  type="text"
-                  placeholder="🔍 Поиск по артикулу, названию, nmId..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`px-4 py-2 rounded-lg transition flex items-center gap-2 text-sm ${showFilters ? 'bg-purple-600 text-white' : 'bg-slate-800 hover:bg-slate-700'
-                  }`}
-              >
-                <span>🎛️</span> Фильтры
-              </button>
-              <button
-                onClick={() => setShowColumns(!showColumns)}
-                className={`px-4 py-2 rounded-lg transition flex items-center gap-2 text-sm ${showColumns ? 'bg-blue-600 text-white' : 'bg-slate-800 hover:bg-slate-700'
-                  }`}
-              >
-                <span>📋</span> Колонки
-              </button>
-              <div className="text-slate-400 text-sm">
-                Найдено: <span className="text-white font-semibold">{filteredSKUs.length}</span> SKU
-                {selectedSKUs.size > 0 && (
-                  <span className="ml-2 text-emerald-400">
-                    ({selectedSKUs.size} выбрано)
-                  </span>
-                )}
-              </div>
-              {selectedSKUs.size > 0 && (
-                <button
-                  onClick={() => setShowTaskModal(true)}
-                  className="px-4 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg transition flex items-center gap-2 text-sm"
-                >
-                  <span>📤</span> Создать задачу
-                </button>
-              )}
-              <button
-                onClick={exportToExcel}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg transition flex items-center gap-2 text-sm"
-              >
-                <span>📥</span> Экспорт
-              </button>
-            </div>
-
-            {/* Column Selector */}
-            {showColumns && (
-              <div className="mt-4 pt-4 border-t border-slate-700">
-                <div className="text-sm text-slate-400 mb-2">Показать колонки:</div>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { key: 'sku', label: 'Артикул' },
-                    { key: 'title', label: 'Название' },
-                    { key: 'brandName', label: 'Бренд' },
-                    { key: 'subjectName', label: 'Предмет' },
-                    { key: 'category', label: 'Категория' },
-                    { key: 'subCategory', label: 'Суб-категория' },
-                    { key: 'brandManager', label: 'Бренд-менеджер' },
-                    { key: 'categoryManager', label: 'Катег. менедж.' },
-                    { key: 'stock', label: 'Остаток' },
-                    { key: 'inTransit', label: 'В пути' },
-                    { key: 'stocksWb', label: 'Остаток WB' },
-                    { key: 'stocksMp', label: 'Остаток МП' },
-                    { key: 'salesPerDay', label: 'Продаж/день' },
-                    { key: 'coverDays', label: 'Дней' },
-                    { key: 'views', label: 'Просмотры' },
-                    { key: 'cartCount', label: 'В корзину' },
-                    { key: 'orderCount', label: 'Заказы шт' },
-                    { key: 'buyoutCount', label: 'Выкупы шт' },
-                    { key: 'buyoutSum', label: 'Выкупы ₽' },
-                    { key: 'ctr', label: 'CTR %' },
-                    { key: 'crCart', label: 'CR корзина' },
-                    { key: 'crOrder', label: 'CR заказ' },
-                    { key: 'buyout', label: 'Выкуп %' },
-                    { key: 'drr', label: 'ДРР' },
-                    { key: 'advertSpend', label: 'Расход рек.' },
-                    { key: 'orderSum', label: 'Выручка' },
-                    { key: 'signal', label: 'Сигнал' },
-                  ].map(col => (
-                    <label
-                      key={col.key}
-                      className={`px-3 py-1 rounded-full text-sm cursor-pointer transition ${columns[col.key as keyof typeof columns]
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                        }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={columns[col.key as keyof typeof columns]}
-                        onChange={(e) => setColumns({ ...columns, [col.key]: e.target.checked })}
-                        className="sr-only"
-                      />
-                      {col.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Expandable Filter Panel */}
-            {showFilters && (
-              <div className="mt-4 pt-4 border-t border-slate-700 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div>
-                  <label className="text-xs text-slate-500 block mb-1">Остаток</label>
-                  <div className="flex gap-1">
-                    <input
-                      type="number"
-                      placeholder="от"
-                      value={filters.stockMin}
-                      onChange={(e) => setFilters({ ...filters, stockMin: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                    <input
-                      type="number"
-                      placeholder="до"
-                      value={filters.stockMax}
-                      onChange={(e) => setFilters({ ...filters, stockMax: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 block mb-1">Дней покрытия</label>
-                  <div className="flex gap-1">
-                    <input
-                      type="number"
-                      placeholder="от"
-                      value={filters.daysMin}
-                      onChange={(e) => setFilters({ ...filters, daysMin: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                    <input
-                      type="number"
-                      placeholder="до"
-                      value={filters.daysMax}
-                      onChange={(e) => setFilters({ ...filters, daysMax: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 block mb-1">CTR %</label>
-                  <div className="flex gap-1">
-                    <input
-                      type="number"
-                      placeholder="от"
-                      value={filters.ctrMin}
-                      onChange={(e) => setFilters({ ...filters, ctrMin: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                    <input
-                      type="number"
-                      placeholder="до"
-                      value={filters.ctrMax}
-                      onChange={(e) => setFilters({ ...filters, ctrMax: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 block mb-1">CR %</label>
-                  <div className="flex gap-1">
-                    <input
-                      type="number"
-                      placeholder="от"
-                      value={filters.crMin}
-                      onChange={(e) => setFilters({ ...filters, crMin: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                    <input
-                      type="number"
-                      placeholder="до"
-                      value={filters.crMax}
-                      onChange={(e) => setFilters({ ...filters, crMax: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 block mb-1">ДРР %</label>
-                  <div className="flex gap-1">
-                    <input
-                      type="number"
-                      placeholder="от"
-                      value={filters.drrMin}
-                      onChange={(e) => setFilters({ ...filters, drrMin: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                    <input
-                      type="number"
-                      placeholder="до"
-                      value={filters.drrMax}
-                      onChange={(e) => setFilters({ ...filters, drrMax: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 block mb-1">Продаж/день</label>
-                  <div className="flex gap-1">
-                    <input
-                      type="number"
-                      placeholder="от"
-                      value={filters.salesMin}
-                      onChange={(e) => setFilters({ ...filters, salesMin: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                    <input
-                      type="number"
-                      placeholder="до"
-                      value={filters.salesMax}
-                      onChange={(e) => setFilters({ ...filters, salesMax: e.target.value })}
-                      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
-                    />
-                  </div>
-                </div>
-                <div className="col-span-full flex justify-end">
-                  <button
-                    onClick={() => setFilters({ stockMin: '', stockMax: '', daysMin: '', daysMax: '', ctrMin: '', ctrMax: '', crMin: '', crMax: '', drrMin: '', drrMax: '', salesMin: '', salesMax: '' })}
-                    className="px-3 py-1 text-sm text-slate-400 hover:text-white transition"
-                  >
-                    ✕ Сбросить фильтры
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Data Table */}
-        {(selectedCluster || showAllSKUs) && filteredSKUs.length > 0 && (
-          <div className="bg-slate-900 rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-800 text-slate-400">
-                  <tr>
-                    <th className="p-3 w-10">
-                      <input
-                        type="checkbox"
-                        checked={selectedSKUs.size === filteredSKUs.length && filteredSKUs.length > 0}
-                        onChange={selectAllVisible}
-                        className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
-                      />
-                    </th>
-                    {columns.sku && <th className="text-left p-3 cursor-pointer hover:text-white" onClick={() => handleSort('sku')}>Артикул {sortField === 'sku' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
-                    {columns.title && <th className="text-left p-3 cursor-pointer hover:text-white" onClick={() => handleSort('title')}>Название {sortField === 'title' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
-                    {columns.brandName && <th className="text-left p-3">Бренд</th>}
-                    {columns.subjectName && <th className="text-left p-3">Предмет</th>}
-                    {columns.category && <th className="text-left p-3">Категория</th>}
-                    {columns.subCategory && <th className="text-left p-3">Суб-категория</th>}
-                    {columns.brandManager && <th className="text-left p-3">Бренд-менеджер</th>}
-                    {columns.categoryManager && <th className="text-left p-3">Катег. менедж.</th>}
-                    {columns.stock && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('stockTotal')}>Остаток {sortField === 'stockTotal' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
-                    {columns.inTransit && <th className="text-right p-3">В пути</th>}
-                    {columns.stocksWb && <th className="text-right p-3">Ост. WB</th>}
-                    {columns.stocksMp && <th className="text-right p-3">Ост. МП</th>}
-                    {columns.salesPerDay && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('ordersPerDay')}>Продаж/день {sortField === 'ordersPerDay' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
-                    {columns.coverDays && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('stockCoverDays')}>Дней {sortField === 'stockCoverDays' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
-                    {columns.views && <th className="text-right p-3">Просмотры</th>}
-                    {columns.cartCount && <th className="text-right p-3">В корзину</th>}
-                    {columns.orderCount && <th className="text-right p-3">Заказы шт</th>}
-                    {columns.buyoutCount && <th className="text-right p-3">Выкупы шт</th>}
-                    {columns.buyoutSum && <th className="text-right p-3">Выкупы ₽</th>}
-                    {columns.ctr && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('crCart')}>CTR% {sortField === 'crCart' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
-                    {columns.crCart && <th className="text-right p-3">CR корзина</th>}
-                    {columns.crOrder && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('crOrder')}>CR заказ {sortField === 'crOrder' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
-                    {columns.buyout && <th className="text-right p-3">Выкуп%</th>}
-                    {columns.drr && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('drr')}>ДРР {sortField === 'drr' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
-                    {columns.advertSpend && <th className="text-right p-3">Расход рек.</th>}
-                    {columns.orderSum && <th className="text-right p-3 cursor-pointer hover:text-white" onClick={() => handleSort('orderSum')}>Выручка {sortField === 'orderSum' && (sortDirection === 'asc' ? '↑' : '↓')}</th>}
-                    {columns.signal && <th className="text-left p-3">Сигнал</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedSKUs.map((item) => {
-                    const coverDays = parseFloat(item.stockCoverDays) || 0;
-                    const drrVal = parseFloat(item.drr || '0');
-
-                    return (
-                      <tr
-                        key={item.nmId}
-                        className={`border-b border-slate-800 hover:bg-slate-800/50 transition ${selectedSKUs.has(item.nmId) ? 'bg-emerald-900/20' : ''}`}
-                      >
-                        <td className="p-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedSKUs.has(item.nmId)}
-                            onChange={() => toggleSKU(item.nmId)}
-                            className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-emerald-500 focus:ring-emerald-500 cursor-pointer"
-                          />
-                        </td>
-                        {columns.sku && (
-                          <td className="p-3 font-mono text-xs">
-                            <a
-                              href={`https://www.wildberries.ru/catalog/${item.nmId}/detail.aspx`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-slate-400 hover:text-emerald-400 transition"
-                            >
-                              {item.sku}
-                            </a>
-                          </td>
-                        )}
-                        {columns.title && (
-                          <td className="p-3 max-w-xs truncate" title={item.title}>
-                            <a
-                              href={`https://www.wildberries.ru/catalog/${item.nmId}/detail.aspx`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:text-emerald-400 transition"
-                            >
-                              {item.title}
-                            </a>
-                          </td>
-                        )}
-                        {columns.brandName && <td className="p-3 text-slate-400">{item.brandName || '—'}</td>}
-                        {columns.subjectName && <td className="p-3 text-slate-400">{item.subjectName || '—'}</td>}
-                        {columns.category && <td className="p-3 text-slate-400">{item.category || '—'}</td>}
-                        {columns.subCategory && <td className="p-3 text-slate-400">{item.subCategory || '—'}</td>}
-                        {columns.brandManager && <td className="p-3 text-purple-400 text-sm">{item.brandManager || '—'}</td>}
-                        {columns.categoryManager && <td className="p-3 text-cyan-400 text-sm">{item.categoryManager || '—'}</td>}
-                        {columns.stock && <td className="p-3 text-right font-mono">{item.stockTotal.toLocaleString()}</td>}
-                        {columns.inTransit && <td className="p-3 text-right font-mono text-blue-400">{item.inTransit > 0 ? `+${item.inTransit}` : '—'}</td>}
-                        {columns.stocksWb && <td className="p-3 text-right font-mono">{(item.stocksWb || 0).toLocaleString()}</td>}
-                        {columns.stocksMp && <td className="p-3 text-right font-mono">{(item.stocksMp || 0).toLocaleString()}</td>}
-                        {columns.salesPerDay && <td className="p-3 text-right font-mono">{item.ordersPerDay}</td>}
-                        {columns.coverDays && (
-                          <td className={`p-3 text-right font-mono font-semibold ${coverDays < 7 ? 'text-red-400' : coverDays < 14 ? 'text-orange-400' : coverDays > 90 ? 'text-blue-400' : 'text-green-400'
-                            }`}>
-                            {coverDays > 900 ? '∞' : item.stockCoverDays}
-                          </td>
-                        )}
-                        {columns.views && <td className="p-3 text-right font-mono">{(item.openCount || 0).toLocaleString()}</td>}
-                        {columns.cartCount && <td className="p-3 text-right font-mono">{(item.cartCount || 0).toLocaleString()}</td>}
-                        {columns.orderCount && (
-                          <td className="p-3 text-right font-mono">
-                            <div className="flex flex-col items-end">
-                              <span>{(item.orderCount || 0).toLocaleString()}</span>
-                              {comparisonEnabled && item.deltaOrderCount !== undefined && item.deltaOrderCount !== null && (
-                                <DeltaBadge value={item.deltaOrderCount} format="percent" size="sm" />
-                              )}
-                            </div>
-                          </td>
-                        )}
-                        {columns.buyoutCount && <td className="p-3 text-right font-mono">{(item.buyoutCount || 0).toLocaleString()}</td>}
-                        {columns.buyoutSum && <td className="p-3 text-right font-mono">{item.buyoutSum ? formatMoney(item.buyoutSum) + ' ₽' : '—'}</td>}
-                        {columns.ctr && (
-                          <td className={`p-3 text-right font-mono ${parseFloat(item.crCart || '0') < 4 ? 'text-yellow-400' : 'text-slate-300'}`}>
-                            <div className="flex flex-col items-end">
-                              <span>{item.crCart ? `${item.crCart}%` : '—'}</span>
-                              {comparisonEnabled && item.deltaCrCart && (
-                                <DeltaBadge value={item.deltaCrCart} format="points" size="sm" />
-                              )}
-                            </div>
-                          </td>
-                        )}
-                        {columns.crCart && <td className="p-3 text-right font-mono text-slate-300">{item.crCart ? `${item.crCart}%` : '—'}</td>}
-                        {columns.crOrder && (
-                          <td className={`p-3 text-right font-mono ${parseFloat(item.crOrder || '0') < 25 ? 'text-yellow-400' : 'text-slate-300'}`}>
-                            <div className="flex flex-col items-end">
-                              <span>{item.crOrder ? `${item.crOrder}%` : '—'}</span>
-                              {comparisonEnabled && item.deltaCrOrder && (
-                                <DeltaBadge value={item.deltaCrOrder} format="points" size="sm" />
-                              )}
-                            </div>
-                          </td>
-                        )}
-                        {columns.buyout && <td className="p-3 text-right font-mono">{item.buyoutPercent ? `${item.buyoutPercent}%` : '—'}</td>}
-                        {columns.drr && (
-                          <td className={`p-3 text-right font-mono ${drrVal > 50 ? 'text-red-400 font-bold' : drrVal > 30 ? 'text-orange-400' : drrVal > 0 ? 'text-slate-300' : 'text-slate-600'
-                            }`}>
-                            {item.drr ? `${item.drr}%` : '—'}
-                          </td>
-                        )}
-                        {columns.advertSpend && <td className="p-3 text-right font-mono">{item.advertSpend ? `${formatMoney(parseFloat(item.advertSpend))} ₽` : '—'}</td>}
-                        {columns.orderSum && (
-                          <td className="p-3 text-right font-mono">
-                            <div className="flex flex-col items-end">
-                              <span>{item.orderSum > 0 ? formatMoney(item.orderSum) + ' ₽' : '—'}</span>
-                              {comparisonEnabled && item.deltaOrderSum !== undefined && item.deltaOrderSum !== null && (
-                                <DeltaBadge value={item.deltaOrderSum} format="percent" size="sm" />
-                              )}
-                            </div>
-                          </td>
-                        )}
-                        {columns.signal && (
-                          <td className="p-3">
-                            {item.signals[0] && (
-                              <span className={`inline-block px-2 py-1 rounded text-xs ${item.signals[0].priority === 'critical' ? 'bg-red-500/20 text-red-400' :
-                                item.signals[0].priority === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
-                                  'bg-green-500/20 text-green-400'
-                                }`}>
-                                {item.signals[0].type}
-                              </span>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 bg-slate-800/50 border-t border-slate-700">
-                <div className="text-slate-400 text-sm">
-                  Показано {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredSKUs.length)} из {filteredSKUs.length} SKU
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCurrentPage(1)}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    «
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    ←
-                  </button>
-                  <span className="px-3 py-1 text-sm">
-                    <span className="text-white font-semibold">{currentPage}</span>
-                    <span className="text-slate-500"> / {totalPages}</span>
-                  </span>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    →
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(totalPages)}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    »
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!selectedCluster && !showAllSKUs && (
-          <div className="text-center py-16 text-slate-500">
-            <div className="text-5xl mb-4">👆</div>
-            <div className="text-lg">Выберите сигнал или нажмите "Показать все SKU"</div>
-          </div>
-        )}
-      </main>
-
-      {/* Task Creation Modal - using new modular component */}
-      <TaskModal
-        isOpen={showTaskModal}
-        onClose={() => setShowTaskModal(false)}
-        selectedSKUs={selectedSKUsForTask}
-        onCreateTask={handleCreateTask}
-      />
-
-      {/* Task Detail Modal */}
-      {selectedTaskForDetail && (
-        <TaskDetailModal
-          task={selectedTaskForDetail}
-          isOpen={true}
-          onClose={() => setSelectedTaskForDetail(null)}
-          onUpdateStatus={handleUpdateTaskStatus}
-          onDelete={deleteTask}
+        {/* Enhanced AI Panel */}
+        <EnhancedAiPanel
+          isOpen={showAiPanel}
+          onClose={() => setShowAiPanel(false)}
+          category={selectedCategory}
+          period={period}
+          kpis={kpis}
+          allSKUs={allSKUs}
+          clusters={data ? {
+            OOS_NOW: data.data.OOS_NOW.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
+            OOS_SOON: data.data.OOS_SOON.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
+            HIGH_DRR: data.data.HIGH_DRR.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
+            LOW_CTR: data.data.LOW_CTR.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
+            LOW_CR: data.data.LOW_CR.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
+            LOW_BUYOUT: data.data.LOW_BUYOUT.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
+            OVERSTOCK: data.data.OVERSTOCK.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
+            ABOVE_MARKET: data.data.ABOVE_MARKET.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
+          } : null}
+          onCreateTask={(skus, taskType, aiSuggestion) => {
+            // Set selected SKUs for task creation
+            setSelectedSKUs(new Set(skus.map(s => s.nmId)));
+            setShowAiPanel(false);
+            setShowTaskModal(true);
+          }}
         />
-      )}
 
-      {/* Enhanced AI Panel */}
-      <EnhancedAiPanel
-        isOpen={showAiPanel}
-        onClose={() => setShowAiPanel(false)}
-        category={selectedCategory}
-        period={period}
-        kpis={kpis}
-        allSKUs={allSKUs}
-        clusters={data ? {
-          OOS_NOW: data.data.OOS_NOW.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
-          OOS_SOON: data.data.OOS_SOON.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
-          HIGH_DRR: data.data.HIGH_DRR.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
-          LOW_CTR: data.data.LOW_CTR.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
-          LOW_CR: data.data.LOW_CR.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
-          LOW_BUYOUT: data.data.LOW_BUYOUT.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
-          OVERSTOCK: data.data.OVERSTOCK.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
-          ABOVE_MARKET: data.data.ABOVE_MARKET.filter(s => selectedCategory === 'Все' || s.category?.toLowerCase().includes(selectedCategory.toLowerCase())),
-        } : null}
-        onCreateTask={(skus, taskType, aiSuggestion) => {
-          // Set selected SKUs for task creation
-          setSelectedSKUs(new Set(skus.map(s => s.nmId)));
-          setShowAiPanel(false);
-          setShowTaskModal(true);
-        }}
-      />
+        {/* Settings Panel */}
+        <SettingsPanel
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+        />
 
-      {/* Settings Panel */}
-      <SettingsPanel
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-      />
-
-      {/* Goals Management Modal */}
-      <GoalsManagementModal
-        isOpen={showGoalsModal}
-        onClose={() => setShowGoalsModal(false)}
-        goals={goals}
-        onSave={handleSaveGoals}
-        allowedCategories={
-          canViewAllCategories(user?.role || 'pending')
-            ? ['face', 'body', 'makeup', 'hair']
-            : user?.categoryId ? [user.categoryId] : []
-        }
-      />
-
-      {/* Command Palette (⌘K) */}
-      <CommandPalette
-        isOpen={commandPalette.isOpen}
-        onClose={commandPalette.close}
-        skus={allSKUs.map(s => ({ nmId: s.nmId, sku: s.sku, title: s.title, category: s.category }))}
-        onSelectSKU={(nmId) => {
-          setSearchQuery(nmId.toString());
-          setShowAllSKUs(true);
-          setSelectedCluster(null);
-        }}
-        onNavigate={(path) => router.push(path)}
-        onAction={(action) => {
-          if (action === 'refresh') fetchData();
-          if (action === 'export') exportToExcel();
-          if (action === 'ai') setShowAiPanel(true);
-          if (action === 'settings') setShowSettings(true);
-          if (action.startsWith('filter:')) {
-            const filter = action.replace('filter:', '');
-            if (filter === 'ALL') {
-              setShowAllSKUs(true);
-              setSelectedCluster(null);
-            } else {
-              setSelectedCluster(filter);
-              setShowAllSKUs(false);
-            }
+        {/* Goals Management Modal */}
+        <GoalsManagementModal
+          isOpen={showGoalsModal}
+          onClose={() => setShowGoalsModal(false)}
+          goals={goals}
+          onSave={handleSaveGoals}
+          allowedCategories={
+            canViewAllCategories(user?.role || 'pending')
+              ? ['face', 'body', 'makeup', 'hair']
+              : user?.categoryId ? [user.categoryId] : []
           }
-        }}
-      />
-    </div>
+        />
+
+        {/* Command Palette (⌘K) */}
+        <CommandPalette
+          isOpen={commandPalette.isOpen}
+          onClose={commandPalette.close}
+          skus={allSKUs.map(s => ({ nmId: s.nmId, sku: s.sku, title: s.title, category: s.category }))}
+          onSelectSKU={(nmId) => {
+            setSearchQuery(nmId.toString());
+            setShowAllSKUs(true);
+            setSelectedCluster(null);
+          }}
+          onNavigate={(path) => router.push(path)}
+          onAction={(action) => {
+            if (action === 'refresh') fetchData();
+            if (action === 'export') exportToExcel();
+            if (action === 'ai') setShowAiPanel(true);
+            if (action === 'settings') setShowSettings(true);
+            if (action.startsWith('filter:')) {
+              const filter = action.replace('filter:', '');
+              if (filter === 'ALL') {
+                setShowAllSKUs(true);
+                setSelectedCluster(null);
+              } else {
+                setSelectedCluster(filter);
+                setShowAllSKUs(false);
+              }
+            }
+          }}
+        />
+      </div>
+    </AppLayout>
   );
 }
