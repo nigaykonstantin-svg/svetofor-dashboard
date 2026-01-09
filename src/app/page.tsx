@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { EnhancedAiPanel } from '@/components/ai';
 import { SettingsPanel } from '@/components/panels';
@@ -511,19 +511,24 @@ export default function SvetoforDashboard() {
     );
   }
 
+  // Memoize signal counts and callback to prevent infinite re-renders
+  const signalCounts = useMemo(() => data ? {
+    OOS_NOW: data.data.OOS_NOW?.length,
+    OOS_SOON: data.data.OOS_SOON?.length,
+    LOW_CTR: data.data.LOW_CTR?.length,
+    HIGH_DRR: data.data.HIGH_DRR?.length,
+    OVERSTOCK: data.data.OVERSTOCK?.length,
+  } : undefined, [data]);
+
+  const handleSignalClick = useCallback((signal: string) => {
+    setSelectedCluster(signal);
+    setShowAllSKUs(false);
+  }, []);
+
   return (
     <AppLayout
-      signalCounts={data ? {
-        OOS_NOW: data.data.OOS_NOW?.length,
-        OOS_SOON: data.data.OOS_SOON?.length,
-        LOW_CTR: data.data.LOW_CTR?.length,
-        HIGH_DRR: data.data.HIGH_DRR?.length,
-        OVERSTOCK: data.data.OVERSTOCK?.length,
-      } : undefined}
-      onSignalClick={(signal) => {
-        setSelectedCluster(signal);
-        setShowAllSKUs(false);
-      }}
+      signalCounts={signalCounts}
+      onSignalClick={handleSignalClick}
       selectedSignal={selectedCluster}
     >
       <div className="min-h-screen bg-slate-950 text-white">
