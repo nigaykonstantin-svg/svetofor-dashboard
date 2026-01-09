@@ -1124,6 +1124,12 @@ export default function SvetoforDashboard() {
           />
         )}
 
+        {/* SKU Detail Modal */}
+        <SKUDetailModal
+          sku={selectedDetailSKU}
+          onClose={() => setSelectedDetailSKU(null)}
+        />
+
         {/* Enhanced AI Panel */}
         <EnhancedAiPanel
           isOpen={showAiPanel}

@@ -36,8 +36,10 @@ export function GoalsManagementModal({
     // Categories this user can edit
     const editableCategories = allowedCategories || ALL_CATEGORIES;
 
-    // Initialize values from existing goals
+    // Initialize values from existing goals when modal opens
     useEffect(() => {
+        if (!isOpen) return;
+
         const newValues: Record<Category, string> = {
             face: '',
             body: '',
@@ -52,7 +54,8 @@ export function GoalsManagementModal({
         });
 
         setValues(newValues);
-    }, [goals, period]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, period.month, period.year]);
 
     const handleValueChange = (category: Category, value: string) => {
         // Allow only numbers
@@ -128,8 +131,8 @@ export function GoalsManagementModal({
                                 <div
                                     key={category}
                                     className={`flex items-center justify-between p-3 rounded-lg border ${isEditable
-                                            ? 'bg-slate-700/50 border-slate-600'
-                                            : 'bg-slate-800/50 border-slate-700 opacity-50'
+                                        ? 'bg-slate-700/50 border-slate-600'
+                                        : 'bg-slate-800/50 border-slate-700 opacity-50'
                                         }`}
                                 >
                                     <div className="flex items-center gap-2">
