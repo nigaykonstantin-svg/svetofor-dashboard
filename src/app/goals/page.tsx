@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import UserHeader from '@/components/auth/UserHeader';
 import { GoalProgressCard, GoalsManagementModal } from '@/components/goals';
@@ -34,6 +34,9 @@ export default function GoalsPage() {
     const [period, setPeriod] = useState<GoalPeriod>(getCurrentPeriod());
     const [showManageModal, setShowManageModal] = useState(false);
 
+    // AbortController ref for canceling in-flight requests
+    const abortControllerRef = useRef<AbortController | null>(null);
+
     // Auth redirect
     useEffect(() => {
         if (!authLoading && !user) {
@@ -43,7 +46,12 @@ export default function GoalsPage() {
 
     // Fetch goals and SKU data
     useEffect(() => {
-        let isCancelled = false;
+        // Cancel previous request
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
+        const signal = abortControllerRef.current.signal;
 
         async function fetchData() {
             try {
@@ -51,24 +59,40 @@ export default function GoalsPage() {
                 setError(null);
 
                 // Fetch goals
-                const goalsRes = await fetch(`/api/goals?month=${period.month}&year=${period.year}`);
+                const goalsRes = await fetch(
+                    `/api/goals?month=${period.month}&year=${period.year}`,
+                    { signal }
+                );
                 if (!goalsRes.ok) {
                     throw new Error(`Goals API error: ${goalsRes.status}`);
                 }
                 const goalsData = await goalsRes.json();
 
-                if (!isCancelled && goalsData.success) {
+                if (!signal.aborted && goalsData.success) {
                     setGoals(goalsData.goals);
                 }
 
+                // Calculate days from start of goal month to today
+                // For January 2026, if today is Jan 10, period = 10 days
+                const now = new Date();
+                const goalMonthStart = new Date(period.year, period.month - 1, 1); // period.month is 1-indexed
+                const daysFromMonthStart = Math.max(1, Math.ceil((now.getTime() - goalMonthStart.getTime()) / (1000 * 60 * 60 * 24)));
+
+                console.log(`Goals: fetching SKU data for ${daysFromMonthStart} days (from ${goalMonthStart.toISOString().split('T')[0]} to ${now.toISOString().split('T')[0]})`);
+
                 // Fetch SKU data for actual sales calculation (optional - goals page can work without it)
                 try {
-                    const skuRes = await fetch('/api/svetofor?period=30');
+                    const skuRes = await fetch(
+                        `/api/svetofor?period=${daysFromMonthStart}&skipDRR=true`,
+                        { signal }
+                    );
                     if (skuRes.ok) {
                         const skuDataResult = await skuRes.json();
-                        if (!isCancelled && skuDataResult.success && skuDataResult.data) {
-                            const allSku: SKUData[] = Object.values(skuDataResult.data).flat() as SKUData[];
-                            setSkuData(allSku);
+                        if (!signal.aborted && skuDataResult.success && skuDataResult.data) {
+                            // Flatten and deduplicate by nmId
+                            const flatSku = Object.values(skuDataResult.data).flat() as SKUData[];
+                            const uniqueSku = [...new Map(flatSku.map(s => [s.nmId, s])).values()];
+                            setSkuData(uniqueSku);
                         }
                     }
                 } catch (skuErr) {
@@ -76,12 +100,16 @@ export default function GoalsPage() {
                     console.warn('Could not load SKU data for goals:', skuErr);
                 }
             } catch (err) {
+                // Ignore aborted requests
+                if (err instanceof Error && err.name === 'AbortError') {
+                    return;
+                }
                 console.error('Failed to fetch goals data:', err);
-                if (!isCancelled) {
+                if (!signal.aborted) {
                     setError('Не удалось загрузить данные целей');
                 }
             } finally {
-                if (!isCancelled) {
+                if (!signal.aborted) {
                     setLoading(false);
                 }
             }
@@ -92,7 +120,7 @@ export default function GoalsPage() {
         }
 
         return () => {
-            isCancelled = true;
+            abortControllerRef.current?.abort();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id, period.month, period.year]);

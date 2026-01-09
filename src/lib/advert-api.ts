@@ -77,6 +77,8 @@ export async function getAdvertStatistics(
     // WB ограничивает до 100 кампаний за раз
     const batchSize = 100;
     const allStats: AdvertStats[] = [];
+    const maxRetries = 3;
+    let retryCount = 0;
 
     for (let i = 0; i < campaignIds.length; i += batchSize) {
         const batch = campaignIds.slice(i, i + batchSize);
@@ -100,10 +102,19 @@ export async function getAdvertStatistics(
             );
 
             if (response.status === 429) {
-                console.warn('Advert API rate limit hit, waiting...');
+                retryCount++;
+                if (retryCount > maxRetries) {
+                    console.error('Advert API: max retries exceeded, skipping batch');
+                    continue;
+                }
+                console.warn(`Advert API rate limit hit, retry ${retryCount}/${maxRetries} in 60s...`);
                 await new Promise(r => setTimeout(r, 60000));
+                i -= batchSize; // Retry this batch
                 continue;
             }
+
+            // Reset retry count on success
+            retryCount = 0;
 
             if (!response.ok) {
                 console.error(`Advert Fullstats Error: ${response.status}`);

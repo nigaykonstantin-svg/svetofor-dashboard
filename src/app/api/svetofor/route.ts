@@ -25,7 +25,7 @@ async function getCachedDRR(days: number): Promise<Map<number, { drr: number; ad
         const freshData = await Promise.race([
             getDRRForPeriod(days),
             new Promise<Map<number, { drr: number; advertSpend: number }>>((resolve) =>
-                setTimeout(() => resolve(new Map()), 8000) // 8 sec timeout
+                setTimeout(() => resolve(new Map()), 5000) // 5 sec timeout
             ),
         ]);
 
@@ -48,6 +48,9 @@ export async function GET(request: Request) {
         const period = parseInt(searchParams.get('period') || '7');
         const validPeriod = Math.min(Math.max(period, 1), 180); // Accept 1-180 days
         const forceRefresh = searchParams.get('refresh') === 'true';
+
+        // Parse skipDRR flag (for pages that don't need advertising data)
+        const skipDRR = searchParams.get('skipDRR') === 'true';
 
         // Check cache first (unless force refresh)
         const cacheKey = cacheKeys.svetofor(validPeriod);
@@ -81,7 +84,7 @@ export async function GET(request: Request) {
             getStocks(),
             getSalesFunnel(validPeriod).catch(() => []),
             getSales(dateFromStr).catch(() => []),
-            getCachedDRR(validPeriod),
+            skipDRR ? Promise.resolve(new Map()) : getCachedDRR(validPeriod),
             getCategoryConfigs(),
         ]);
 
