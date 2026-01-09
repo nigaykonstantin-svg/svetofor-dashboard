@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/useAuth';
 import {
     TaskList,
@@ -14,16 +14,26 @@ import {
     TaskPriority
 } from '@/components/tasks';
 
-export default function TasksPage() {
+// Inner component that uses useSearchParams
+function TasksPageContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { user, isAuthenticated, isLoading, isSuperAdmin, isCategoryManager } = useAuth();
     const { tasks, isLoaded, updateTaskStatus, deleteTask, getTasksForUser, getTaskStats } = useTasks();
 
-    // Filters
-    const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
-    const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(null);
-    const [typeFilter, setTypeFilter] = useState<string | null>(null);
-    const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null);
+    // Initialize filters from URL params
+    const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(
+        (searchParams.get('status') as TaskStatus) || null
+    );
+    const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(
+        (searchParams.get('priority') as TaskPriority) || null
+    );
+    const [typeFilter, setTypeFilter] = useState<string | null>(
+        searchParams.get('type') || null
+    );
+    const [assigneeFilter, setAssigneeFilter] = useState<string | null>(
+        searchParams.get('assignee') || null
+    );
 
     // Selected task for detail modal
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -191,7 +201,7 @@ export default function TasksPage() {
                     </div>
                     {filteredTasks.some(t => t.status !== 'done') && (
                         <button
-                            onClick={() => setStatusFilter('done')}
+                            onClick={() => setStatusFilter(statusFilter === 'done' ? null : 'done')}
                             className="text-xs text-slate-500 hover:text-white transition"
                         >
                             {statusFilter === 'done' ? 'Показать активные' : 'Показать завершённые'}
@@ -242,5 +252,21 @@ export default function TasksPage() {
                 />
             )}
         </div>
+    );
+}
+
+// Main export with Suspense boundary
+export default function TasksPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <div className="text-slate-400">Загрузка...</div>
+                </div>
+            </div>
+        }>
+            <TasksPageContent />
+        </Suspense>
     );
 }

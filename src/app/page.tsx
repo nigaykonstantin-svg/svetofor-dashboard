@@ -560,8 +560,8 @@ export default function SvetoforDashboard() {
             <div className="mb-6">
               <TaskControlPanel
                 tasks={userTasks}
-                onFilterByStatus={() => { }}
-                onFilterByAssignee={() => { }}
+                onFilterByStatus={(status) => router.push(`/tasks${status ? `?status=${status}` : ''}`)}
+                onFilterByAssignee={(assigneeId) => router.push(`/tasks${assigneeId ? `?assignee=${assigneeId}` : ''}`)}
                 onViewAllTasks={() => router.push('/tasks')}
               />
             </div>

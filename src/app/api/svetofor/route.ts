@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getStocks, getSalesFunnel, getSales } from '@/lib/wb-api';
 import { getDRRForPeriod } from '@/lib/advert-api';
 import { getSKUByNmId } from '@/lib/sku-matrix';
+import { getCategoryConfigs } from '@/lib/optimizer/config-manager';
 
 // In-memory cache for DRR data
 let drrCache: { data: Map<number, { drr: number; advertSpend: number }>; timestamp: number } | null = null;
@@ -50,14 +51,33 @@ export async function GET(request: Request) {
         const dateFromStr = dateFrom.toISOString().split('T')[0];
 
         // Загружаем данные параллельно
-        const [stocksRaw, funnelData, salesData, drrData] = await Promise.all([
+        const [stocksRaw, funnelData, salesData, drrData, categoryConfigs] = await Promise.all([
             getStocks(),
             getSalesFunnel(validPeriod).catch(() => []),
             getSales(dateFromStr).catch(() => []),
             getCachedDRR(validPeriod),
+            getCategoryConfigs(),
         ]);
 
         console.log(`Loaded: stocks=${stocksRaw.length}, funnel=${funnelData.length}, sales=${salesData.length}, drr=${drrData.size} SKUs (period=${validPeriod}d)`);
+
+        // Category name mapping (Russian to config keys)
+        const CATEGORY_MAP: Record<string, string> = {
+            'Уход за телом': 'body',
+            'Уход за лицом': 'face',
+            'Уход за волосами': 'hair',
+            'Макияж': 'makeup',
+        };
+
+        // Get thresholds for category with fallback defaults
+        const getThresholdsForCategory = (categoryName: string) => {
+            const key = CATEGORY_MAP[categoryName] || categoryName.toLowerCase();
+            const config = categoryConfigs[key];
+            return {
+                ctr_low: config?.ctr_benchmark || 4,      // Default 4%
+                cr_order_low: config?.cr_order_low || 25, // Default 25% (корзина→заказ)
+            };
+        };
 
         // Агрегируем остатки по nmId
         const stocksMap = new Map<number, {
@@ -228,28 +248,35 @@ export async function GET(request: Request) {
             }
 
             // ============ FUNNEL SIGNALS ============
+            // Get category for this SKU to use proper thresholds
+            const matrixData = getSKUByNmId(nmId);
+            const categoryName = matrixData?.categoryWB || stock?.category || '';
+            const thresholds = getThresholdsForCategory(categoryName);
+
             if (funnel && funnel.openCount > 500) {
                 // LOW_CTR: много показов, мало добавлений в корзину
-                if (funnel.crCart < 4) {
-                    const potentialOrders = funnel.openCount * 0.04 - funnel.cartCount; // потенциал при норм CTR
+                // Using category-specific CTR threshold
+                if (funnel.crCart < thresholds.ctr_low) {
+                    const potentialOrders = funnel.openCount * (thresholds.ctr_low / 100) - funnel.cartCount;
                     signals.push({
                         type: 'LOW_CTR',
                         priority: 'warning',
-                        message: `Низкий CTR: ${funnel.crCart.toFixed(1)}% (показы: ${funnel.openCount.toLocaleString()})`,
-                        impactPerDay: (potentialOrders * price * 0.25) / validPeriod, // ~25% конверсия в заказ
+                        message: `Низкий CTR: ${funnel.crCart.toFixed(1)}% (порог: ${thresholds.ctr_low}%)`,
+                        impactPerDay: (potentialOrders * price * 0.25) / validPeriod,
                         impactPerWeek: potentialOrders * price * 0.25 / validPeriod * 7,
                         urgency: 'this_week',
                         action: { type: 'update_content', priority: 'this_week', details: 'Обновить главное фото и заголовок' },
                     });
                 }
 
-                // LOW_CR_CART: добавляют в корзину, но не заказывают
-                if (funnel.crOrder < 25 && funnel.cartCount > 50) {
-                    const potentialOrders = funnel.cartCount * 0.25 - funnel.orderCount;
+                // LOW_CR: добавляют в корзину, но не заказывают
+                // Using category-specific CR threshold
+                if (funnel.crOrder < thresholds.cr_order_low && funnel.cartCount > 50) {
+                    const potentialOrders = funnel.cartCount * (thresholds.cr_order_low / 100) - funnel.orderCount;
                     signals.push({
                         type: 'LOW_CR',
                         priority: 'warning',
-                        message: `Низкий CR заказ: ${funnel.crOrder.toFixed(0)}% (корзина→заказ)`,
+                        message: `Низкий CR заказ: ${funnel.crOrder.toFixed(0)}% (порог: ${thresholds.cr_order_low}%)`,
                         impactPerDay: (potentialOrders * price) / validPeriod,
                         impactPerWeek: potentialOrders * price / validPeriod * 7,
                         urgency: 'this_week',
@@ -346,8 +373,8 @@ export async function GET(request: Request) {
                 }
             }
 
-            // Get manager data from SKU matrix
-            const matrixData = getSKUByNmId(nmId);
+
+            // matrixData already defined above for thresholds
 
             analyses.push({
                 sku: stock?.sku || funnel?.vendorCode || matrixData?.sku || String(nmId),
