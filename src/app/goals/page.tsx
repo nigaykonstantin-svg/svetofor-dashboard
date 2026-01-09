@@ -43,6 +43,8 @@ export default function GoalsPage() {
 
     // Fetch goals and SKU data
     useEffect(() => {
+        let isCancelled = false;
+
         async function fetchData() {
             try {
                 setLoading(true);
@@ -50,33 +52,50 @@ export default function GoalsPage() {
 
                 // Fetch goals
                 const goalsRes = await fetch(`/api/goals?month=${period.month}&year=${period.year}`);
+                if (!goalsRes.ok) {
+                    throw new Error(`Goals API error: ${goalsRes.status}`);
+                }
                 const goalsData = await goalsRes.json();
 
-                if (goalsData.success) {
+                if (!isCancelled && goalsData.success) {
                     setGoals(goalsData.goals);
                 }
 
-                // Fetch SKU data for actual sales calculation
-                const skuRes = await fetch('/api/svetofor?period=30');
-                const skuDataResult = await skuRes.json();
-
-                if (skuDataResult.success && skuDataResult.data) {
-                    // Flatten all cluster data
-                    const allSku: SKUData[] = Object.values(skuDataResult.data).flat() as SKUData[];
-                    setSkuData(allSku);
+                // Fetch SKU data for actual sales calculation (optional - goals page can work without it)
+                try {
+                    const skuRes = await fetch('/api/svetofor?period=30');
+                    if (skuRes.ok) {
+                        const skuDataResult = await skuRes.json();
+                        if (!isCancelled && skuDataResult.success && skuDataResult.data) {
+                            const allSku: SKUData[] = Object.values(skuDataResult.data).flat() as SKUData[];
+                            setSkuData(allSku);
+                        }
+                    }
+                } catch (skuErr) {
+                    // SKU data is optional, continue without it
+                    console.warn('Could not load SKU data for goals:', skuErr);
                 }
             } catch (err) {
                 console.error('Failed to fetch goals data:', err);
-                setError('Не удалось загрузить данные целей');
+                if (!isCancelled) {
+                    setError('Не удалось загрузить данные целей');
+                }
             } finally {
-                setLoading(false);
+                if (!isCancelled) {
+                    setLoading(false);
+                }
             }
         }
 
         if (user) {
             fetchData();
         }
-    }, [user, period]);
+
+        return () => {
+            isCancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.id, period.month, period.year]);
 
     // Calculate progress for all goals
     const goalsProgress = useMemo(() => {

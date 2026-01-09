@@ -1,52 +1,52 @@
 {
-    "goals": [
-        {
-            "id": "goal-face-2026-01",
-            "categoryId": "face",
-            "targetAmount": 5000000,
-            "period": {
-                "month": 1,
-                "year": 2026
-            },
-            "createdBy": "sa-1",
-            "createdAt": "2026-01-01T00:00:00Z",
-            "updatedAt": "2026-01-01T00:00:00Z"
-        },
-        {
-            "id": "goal-body-2026-01",
-            "categoryId": "body",
-            "targetAmount": 3500000,
-            "period": {
-                "month": 1,
-                "year": 2026
-            },
-            "createdBy": "sa-1",
-            "createdAt": "2026-01-01T00:00:00Z",
-            "updatedAt": "2026-01-01T00:00:00Z"
-        },
-        {
-            "id": "goal-makeup-2026-01",
-            "categoryId": "makeup",
-            "targetAmount": 2800000,
-            "period": {
-                "month": 1,
-                "year": 2026
-            },
-            "createdBy": "sa-1",
-            "createdAt": "2026-01-01T00:00:00Z",
-            "updatedAt": "2026-01-01T00:00:00Z"
-        },
-        {
-            "id": "goal-hair-2026-01",
-            "categoryId": "hair",
-            "targetAmount": 4200000,
-            "period": {
-                "month": 1,
-                "year": 2026
-            },
-            "createdBy": "sa-1",
-            "createdAt": "2026-01-01T00:00:00Z",
-            "updatedAt": "2026-01-01T00:00:00Z"
-        }
-    ]
+  "goals": [
+    {
+      "id": "goal-face-2026-01",
+      "categoryId": "face",
+      "targetAmount": 500000000,
+      "period": {
+        "month": 1,
+        "year": 2026
+      },
+      "createdBy": "sa-1",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-09T22:53:12.489Z"
+    },
+    {
+      "id": "goal-body-2026-01",
+      "categoryId": "body",
+      "targetAmount": 3500000,
+      "period": {
+        "month": 1,
+        "year": 2026
+      },
+      "createdBy": "sa-1",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-09T22:53:12.489Z"
+    },
+    {
+      "id": "goal-makeup-2026-01",
+      "categoryId": "makeup",
+      "targetAmount": 2800000,
+      "period": {
+        "month": 1,
+        "year": 2026
+      },
+      "createdBy": "sa-1",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-09T22:53:12.489Z"
+    },
+    {
+      "id": "goal-hair-2026-01",
+      "categoryId": "hair",
+      "targetAmount": 4200000,
+      "period": {
+        "month": 1,
+        "year": 2026
+      },
+      "createdBy": "sa-1",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-09T22:53:12.489Z"
+    }
+  ]
 }
