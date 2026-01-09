@@ -7,7 +7,7 @@ import { SettingsPanel } from '@/components/panels';
 import { AnalyticsChart, DeltaBadge } from '@/components/charts';
 import { CommandPalette, useCommandPalette } from '@/components/command-palette';
 import { DashboardHeader, AppLayout } from '@/components/layout';
-import { KPICards, SignalClusters, CategoryTabs, SKUTableSection, CLUSTER_CONFIG } from '@/components/dashboard';
+import { KPICards, SignalClusters, CategoryTabs, SKUTableSection, CLUSTER_CONFIG, SKUDetailModal } from '@/components/dashboard';
 import { TaskModal, TaskControlPanel, TaskDetailModal, TaskList, useTasks, Task, TaskStatus, TaskSKU } from '@/components/tasks';
 import { GoalsSummaryBar, GoalsManagementModal } from '@/components/goals';
 import { useAuth } from '@/lib/useAuth';
@@ -105,12 +105,13 @@ export default function SvetoforDashboard() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const itemsPerPage = 200;
 
   // Task management - using new modular system
   const [selectedSKUs, setSelectedSKUs] = useState<Set<number>>(new Set());
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<Task | null>(null);
+  const [selectedDetailSKU, setSelectedDetailSKU] = useState<SKUData | null>(null);
   const { user, isSuperAdmin, isCategoryManager } = useAuth();
   const router = useRouter();
 
@@ -231,7 +232,7 @@ export default function SvetoforDashboard() {
     let result = showAllSKUs
       ? allSKUs
       : selectedCluster
-        ? allSKUs.filter(s => s.signalType === selectedCluster)
+        ? allSKUs.filter(s => s.signals?.some((sig: { type: string }) => sig.type === selectedCluster))
         : [];
 
     // Search filter
@@ -482,6 +483,21 @@ export default function SvetoforDashboard() {
     fetchGoals();
   };
 
+  // Memoize signal counts and callback to prevent infinite re-renders
+  // IMPORTANT: These hooks must be before any conditional returns!
+  const signalCounts = useMemo(() => data ? {
+    OOS_NOW: data.data.OOS_NOW?.length,
+    OOS_SOON: data.data.OOS_SOON?.length,
+    LOW_CTR: data.data.LOW_CTR?.length,
+    HIGH_DRR: data.data.HIGH_DRR?.length,
+    OVERSTOCK: data.data.OVERSTOCK?.length,
+  } : undefined, [data]);
+
+  const handleSignalClick = useCallback((signal: string) => {
+    setSelectedCluster(signal);
+    setShowAllSKUs(false);
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -527,20 +543,6 @@ export default function SvetoforDashboard() {
       </div>
     );
   }
-
-  // Memoize signal counts and callback to prevent infinite re-renders
-  const signalCounts = useMemo(() => data ? {
-    OOS_NOW: data.data.OOS_NOW?.length,
-    OOS_SOON: data.data.OOS_SOON?.length,
-    LOW_CTR: data.data.LOW_CTR?.length,
-    HIGH_DRR: data.data.HIGH_DRR?.length,
-    OVERSTOCK: data.data.OVERSTOCK?.length,
-  } : undefined, [data]);
-
-  const handleSignalClick = useCallback((signal: string) => {
-    setSelectedCluster(signal);
-    setShowAllSKUs(false);
-  }, []);
 
   return (
     <AppLayout
@@ -915,7 +917,12 @@ export default function SvetoforDashboard() {
                       return (
                         <tr
                           key={item.nmId}
-                          className={`border-b border-slate-800 hover:bg-slate-800/50 transition ${selectedSKUs.has(item.nmId) ? 'bg-emerald-900/20' : ''}`}
+                          className={`border-b border-slate-800 hover:bg-slate-800/50 transition cursor-pointer ${selectedSKUs.has(item.nmId) ? 'bg-emerald-900/20' : ''}`}
+                          onClick={(e) => {
+                            // Don't open modal if clicking checkbox or link
+                            if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'A') return;
+                            setSelectedDetailSKU(item);
+                          }}
                         >
                           <td className="p-3">
                             <input
@@ -1021,14 +1028,20 @@ export default function SvetoforDashboard() {
                           )}
                           {columns.signal && (
                             <td className="p-3">
-                              {item.signals[0] && (
-                                <span className={`inline-block px-2 py-1 rounded text-xs ${item.signals[0].priority === 'critical' ? 'bg-red-500/20 text-red-400' :
-                                  item.signals[0].priority === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
-                                    'bg-green-500/20 text-green-400'
-                                  }`}>
-                                  {item.signals[0].type}
-                                </span>
-                              )}
+                              <div className="flex flex-wrap gap-1">
+                                {item.signals?.map((sig: { type: string; priority: string }, idx: number) => (
+                                  <span
+                                    key={idx}
+                                    className={`inline-block px-2 py-0.5 rounded text-xs ${sig.priority === 'critical' ? 'bg-red-500/20 text-red-400' :
+                                      sig.priority === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
+                                        sig.priority === 'success' ? 'bg-green-500/20 text-green-400' :
+                                          'bg-slate-500/20 text-slate-400'
+                                      }`}
+                                  >
+                                    {sig.type}
+                                  </span>
+                                ))}
+                              </div>
                             </td>
                           )}
                         </tr>
