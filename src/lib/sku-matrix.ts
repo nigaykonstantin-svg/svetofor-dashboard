@@ -38,6 +38,23 @@ export function getSKUByNmId(nmId: number): SKUMatrixItem | undefined {
     return nmIdMap.get(nmId);
 }
 
+// Get all SKUs as array
+export function getAllSKUs(): SKUMatrixItem[] {
+    return skuMatrixData.skus;
+}
+
+// Get cached Map for O(1) lookups (initializes on first call)
+export function getSKUMap(): Map<number, SKUMatrixItem> {
+    if (!nmIdMap) {
+        nmIdMap = new Map();
+        for (const sku of skuMatrixData.skus) {
+            nmIdMap.set(sku.nmId, sku);
+        }
+    }
+    return nmIdMap;
+}
+
+
 export function getCategories(): string[] {
     return skuMatrixData.categories;
 }

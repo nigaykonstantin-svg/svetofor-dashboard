@@ -3,6 +3,9 @@ import { getStocks, getSalesFunnel, getSales } from '@/lib/wb-api';
 import { getDRRForPeriod } from '@/lib/advert-api';
 import { getSKUByNmId } from '@/lib/sku-matrix';
 import { getCategoryConfigs } from '@/lib/optimizer/config-manager';
+import { CATEGORY_API_MAP, CATEGORY_REVERSE_MAP } from '@/lib/constants';
+import { DEFAULT_THRESHOLDS } from '@/lib/category-thresholds';
+import { apiCache, cacheKeys, cacheTTL } from '@/lib/api-cache';
 
 // In-memory cache for DRR data
 let drrCache: { data: Map<number, { drr: number; advertSpend: number }>; timestamp: number } | null = null;
@@ -44,6 +47,17 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const period = parseInt(searchParams.get('period') || '7');
         const validPeriod = Math.min(Math.max(period, 1), 180); // Accept 1-180 days
+        const forceRefresh = searchParams.get('refresh') === 'true';
+
+        // Check cache first (unless force refresh)
+        const cacheKey = cacheKeys.svetofor(validPeriod);
+        if (!forceRefresh) {
+            const cached = apiCache.get<{ success: boolean; data: unknown }>(cacheKey);
+            if (cached) {
+                console.log(`[Svetofor API] Returning cached data for period ${validPeriod}d`);
+                return NextResponse.json({ ...cached, fromCache: true });
+            }
+        }
 
         // Parse user thresholds from query params (from localStorage on client)
         let userThresholds: Record<string, any> = {};
@@ -73,22 +87,6 @@ export async function GET(request: Request) {
 
         console.log(`Loaded: stocks=${stocksRaw.length}, funnel=${funnelData.length}, sales=${salesData.length}, drr=${drrData.size} SKUs (period=${validPeriod}d)`);
 
-        // Category name mapping (Russian to config keys)
-        const CATEGORY_MAP: Record<string, string> = {
-            'Уход за телом': 'body',
-            'Уход за лицом': 'face',
-            'Уход за волосами': 'hair',
-            'Макияж': 'makeup',
-        };
-
-        // Reverse map for looking up user thresholds by Russian name
-        const CATEGORY_REVERSE_MAP: Record<string, string> = {
-            'body': 'Уход за телом',
-            'face': 'Уход за лицом',
-            'hair': 'Уход за волосами',
-            'makeup': 'Макияж',
-        };
-
         // Get thresholds for category - prioritizes user settings from localStorage
         const getThresholdsForCategory = (categoryName: string) => {
             // First check user thresholds from settings UI
@@ -103,7 +101,7 @@ export async function GET(request: Request) {
             }
 
             // Fallback to YAML config
-            const key = CATEGORY_MAP[categoryName] || categoryName.toLowerCase();
+            const key = CATEGORY_API_MAP[categoryName] || categoryName.toLowerCase();
             const config = categoryConfigs[key];
             console.log(`[Thresholds] Using YAML config for "${categoryName}" (key: ${key})`);
             return {
@@ -240,8 +238,8 @@ export async function GET(request: Request) {
                     action: { type: 'restock', priority: 'today', details: 'Срочно отгрузить товар на склад WB' },
                 });
             }
-            // OOS скоро (< 7 дней)
-            else if (stockCoverDays < 7) {
+            // OOS скоро (< STOCK_CRITICAL_DAYS)
+            else if (stockCoverDays < DEFAULT_THRESHOLDS.STOCK_CRITICAL_DAYS) {
                 const lostPerDay = ordersPerDay * price;
                 signals.push({
                     type: 'OOS_SOON',
@@ -253,8 +251,8 @@ export async function GET(request: Request) {
                     action: { type: 'restock', priority: 'today', details: 'Срочно запланировать отгрузку' },
                 });
             }
-            // OOS скоро (< 14 дней)
-            else if (stockCoverDays < 14) {
+            // OOS скоро (< STOCK_WARNING_DAYS)
+            else if (stockCoverDays < DEFAULT_THRESHOLDS.STOCK_WARNING_DAYS) {
                 const lostPerDay = ordersPerDay * price;
                 signals.push({
                     type: 'OOS_SOON',
@@ -268,7 +266,7 @@ export async function GET(request: Request) {
             }
 
             // Overstock
-            if (stockCoverDays > 90 && stockTotal > 0) {
+            if (stockCoverDays > DEFAULT_THRESHOLDS.STOCK_OVERSTOCK_DAYS && stockTotal > 0) {
                 const frozenCapital = stockTotal * price;
                 signals.push({
                     type: 'OVERSTOCK',
@@ -319,8 +317,8 @@ export async function GET(request: Request) {
                 }
 
                 // LOW_BUYOUT: заказывают, но не выкупают
-                if (funnel.buyoutPercent < 70 && funnel.orderCount > 20) {
-                    const lostBuyout = funnel.orderSum * (0.70 - funnel.buyoutPercent / 100);
+                if (funnel.buyoutPercent < DEFAULT_THRESHOLDS.BUYOUT_LOW && funnel.orderCount > 20) {
+                    const lostBuyout = funnel.orderSum * (DEFAULT_THRESHOLDS.BUYOUT_LOW / 100 - funnel.buyoutPercent / 100);
                     signals.push({
                         type: 'LOW_BUYOUT',
                         priority: 'warning',
@@ -356,7 +354,7 @@ export async function GET(request: Request) {
                 advertSpend = skuDrr.advertSpend;
                 const drrValue = skuDrr.drr;
 
-                if (drrValue >= 50) {
+                if (drrValue >= DEFAULT_THRESHOLDS.DRR_CRITICAL) {
                     signals.push({
                         type: 'HIGH_DRR',
                         priority: 'critical',
@@ -366,7 +364,7 @@ export async function GET(request: Request) {
                         urgency: 'today',
                         action: { type: 'pause_ads', priority: 'today', details: 'Остановить рекламу или снизить ставки' },
                     });
-                } else if (drrValue >= 30) {
+                } else if (drrValue >= DEFAULT_THRESHOLDS.DRR_HIGH) {
                     signals.push({
                         type: 'HIGH_DRR',
                         priority: 'warning',
@@ -382,7 +380,7 @@ export async function GET(request: Request) {
             // ============ FALLING_SALES SIGNAL ============
             if (funnel?.deltaOrderSum !== null && funnel?.deltaOrderSum !== undefined) {
                 const salesDrop = funnel.deltaOrderSum;
-                if (salesDrop < -40) {
+                if (salesDrop < -DEFAULT_THRESHOLDS.SALES_DROP_CRITICAL) {
                     const lostRevenue = Math.abs((funnel.pastOrderSum || 0) - (funnel.orderSum || 0));
                     signals.push({
                         type: 'FALLING_SALES',
@@ -393,7 +391,7 @@ export async function GET(request: Request) {
                         urgency: 'today',
                         action: { type: 'review_sku', priority: 'today', details: 'Срочно проанализировать причины падения' },
                     });
-                } else if (salesDrop < -20) {
+                } else if (salesDrop < -DEFAULT_THRESHOLDS.SALES_DROP) {
                     const lostRevenue = Math.abs((funnel.pastOrderSum || 0) - (funnel.orderSum || 0));
                     signals.push({
                         type: 'FALLING_SALES',
@@ -526,7 +524,7 @@ export async function GET(request: Request) {
             });
         }
 
-        return NextResponse.json({
+        const response = {
             success: true,
             timestamp: new Date().toISOString(),
             totalSKUs: analyses.length,
@@ -544,7 +542,13 @@ export async function GET(request: Request) {
             },
             comboSignals,
             data: clusters,
-        });
+        };
+
+        // Save to cache (5 minute TTL)
+        apiCache.set(cacheKey, response, cacheTTL.MEDIUM);
+        console.log(`[Svetofor API] Cached response for period ${validPeriod}d`);
+
+        return NextResponse.json(response);
 
     } catch (error) {
         console.error('Svetofor API Error:', error);

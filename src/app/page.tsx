@@ -428,13 +428,7 @@ export default function SvetoforDashboard() {
     let skusForKPI = allSKUs;
 
     if (selectedCategory !== 'Все') {
-      const categoryMap: Record<string, string[]> = {
-        'Лицо': ['Уход за лицом'],
-        'Тело': ['Уход за телом'],
-        'Макияж': ['Макияж'],
-        'Волосы': ['Уход за волосами'],
-      };
-      const allowedCategories = categoryMap[selectedCategory] || [];
+      const allowedCategories = CATEGORY_MAP[selectedCategory] || [];
       skusForKPI = allSKUs.filter(s =>
         allowedCategories.some(cat =>
           s.category?.toLowerCase() === cat.toLowerCase()
