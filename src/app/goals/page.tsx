@@ -21,6 +21,7 @@ import {
     getProblematicSKUs,
 } from '@/lib/goals-utils';
 import { SKUData } from '@/types/dashboard';
+import { getCachedSKUData, cacheSKUData } from '@/lib/client-cache';
 
 export default function GoalsPage() {
     const router = useRouter();
@@ -82,17 +83,31 @@ export default function GoalsPage() {
 
                 // Fetch SKU data for actual sales calculation (optional - goals page can work without it)
                 try {
-                    const skuRes = await fetch(
-                        `/api/svetofor?period=${daysFromMonthStart}&skipDRR=true`,
-                        { signal }
-                    );
-                    if (skuRes.ok) {
-                        const skuDataResult = await skuRes.json();
-                        if (!signal.aborted && skuDataResult.success && skuDataResult.data) {
-                            // Flatten and deduplicate by nmId
-                            const flatSku = Object.values(skuDataResult.data).flat() as SKUData[];
-                            const uniqueSku = [...new Map(flatSku.map(s => [s.nmId, s])).values()];
+                    // Check client cache first
+                    const cached = getCachedSKUData(daysFromMonthStart);
+                    if (cached) {
+                        console.log(`Goals: using cached SKU data (period=${cached.cachedPeriod})`);
+                        const flatSku = Object.values(cached.data.data || {}).flat() as SKUData[];
+                        const uniqueSku = [...new Map(flatSku.map(s => [s.nmId, s])).values()];
+                        if (!signal.aborted) {
                             setSkuData(uniqueSku);
+                        }
+                    } else {
+                        // Fetch from API
+                        const skuRes = await fetch(
+                            `/api/svetofor?period=${daysFromMonthStart}&skipDRR=true`,
+                            { signal }
+                        );
+                        if (skuRes.ok) {
+                            const skuDataResult = await skuRes.json();
+                            if (!signal.aborted && skuDataResult.success && skuDataResult.data) {
+                                // Cache the result
+                                cacheSKUData(skuDataResult, daysFromMonthStart);
+                                // Flatten and deduplicate by nmId
+                                const flatSku = Object.values(skuDataResult.data).flat() as SKUData[];
+                                const uniqueSku = [...new Map(flatSku.map(s => [s.nmId, s])).values()];
+                                setSkuData(uniqueSku);
+                            }
                         }
                     }
                 } catch (skuErr) {

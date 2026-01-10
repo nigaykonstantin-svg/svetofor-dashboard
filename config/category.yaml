@@ -11,6 +11,20 @@ body:
   ctr_benchmark: 1.5
   cr_order_low: 1.5
   # Stats: 202 active, 32 gold, 10 super gold
+  # Бенчмарки по классам SKU
+  class_benchmarks:
+    gold:
+      ctr: 6
+      cr_cart: 50
+      cr_order: 70
+    silver:
+      ctr: 4
+      cr_cart: 40
+      cr_order: 60
+    bronze:
+      ctr: 2
+      cr_cart: 30
+      cr_order: 50
 
 # ══════════════════════════════════════════════════════════
 # Уход за лицом (487 SKUs, 47 gold)
@@ -20,6 +34,19 @@ face:
   ctr_benchmark: 2
   cr_order_low: 2
   # Stats: 223 active, 34 gold, 13 super gold
+  class_benchmarks:
+    gold:
+      ctr: 8
+      cr_cart: 55
+      cr_order: 75
+    silver:
+      ctr: 6
+      cr_cart: 45
+      cr_order: 65
+    bronze:
+      ctr: 4
+      cr_cart: 35
+      cr_order: 55
 
 # ══════════════════════════════════════════════════════════
 # Уход за волосами (418 SKUs, 41 gold)
@@ -29,6 +56,19 @@ hair:
   ctr_benchmark: 1.8
   cr_order_low: 1.8
   # Stats: 175 active, 19 gold, 22 super gold
+  class_benchmarks:
+    gold:
+      ctr: 7
+      cr_cart: 52
+      cr_order: 72
+    silver:
+      ctr: 5
+      cr_cart: 42
+      cr_order: 62
+    bronze:
+      ctr: 3
+      cr_cart: 32
+      cr_order: 52
 
 # ══════════════════════════════════════════════════════════
 # Макияж (328 SKUs, 25 gold)
@@ -38,6 +78,19 @@ makeup:
   ctr_benchmark: 2.5
   cr_order_low: 2.5
   # Stats: 242 active, 19 gold, 6 super gold
+  class_benchmarks:
+    gold:
+      ctr: 10
+      cr_cart: 60
+      cr_order: 80
+    silver:
+      ctr: 7
+      cr_cart: 50
+      cr_order: 70
+    bronze:
+      ctr: 5
+      cr_cart: 40
+      cr_order: 60
 
 # ══════════════════════════════════════════════════════════
 # Парфюмерия (22 SKUs, 0 gold)

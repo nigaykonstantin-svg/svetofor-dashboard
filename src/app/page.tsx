@@ -7,7 +7,7 @@ import { SettingsPanel } from '@/components/panels';
 import { AnalyticsChart, DeltaBadge } from '@/components/charts';
 import { CommandPalette, useCommandPalette } from '@/components/command-palette';
 import { DashboardHeader, AppLayout } from '@/components/layout';
-import { KPICards, SignalClusters, CategoryTabs, SKUTableSection, CLUSTER_CONFIG, SKUDetailModal } from '@/components/dashboard';
+import { KPICards, SignalClusters, CategoryTabs, SKUTableSection, CLUSTER_CONFIG, SKUDetailModal, LossesPanel } from '@/components/dashboard';
 import { TaskModal, TaskControlPanel, TaskDetailModal, TaskList, useTasks, Task, TaskStatus, TaskSKU } from '@/components/tasks';
 import { GoalsSummaryBar, GoalsManagementModal } from '@/components/goals';
 import { useAuth } from '@/lib/useAuth';
@@ -590,6 +590,9 @@ export default function SvetoforDashboard() {
             onClusterSelect={(cluster) => { setSelectedCluster(cluster); setShowAllSKUs(false); }}
             onShowAllToggle={() => { setShowAllSKUs(!showAllSKUs); setSelectedCluster(null); }}
           />
+
+          {/* Potential Losses Panel */}
+          <LossesPanel allSKUs={allSKUs} selectedCategory={selectedCategory} />
 
           {/* Task Control Panel - for admins/category managers */}
           {canSeeTaskControl && userTasks.length > 0 && (
