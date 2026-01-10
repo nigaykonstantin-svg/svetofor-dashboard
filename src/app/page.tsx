@@ -595,13 +595,14 @@ export default function SvetoforDashboard() {
           <LossesPanel allSKUs={allSKUs} selectedCategory={selectedCategory} />
 
           {/* Task Control Panel - for admins/category managers */}
-          {canSeeTaskControl && userTasks.length > 0 && (
+          {canSeeTaskControl && (
             <div className="mb-6">
               <TaskControlPanel
                 tasks={userTasks}
                 onFilterByStatus={(status) => router.push(`/tasks${status ? `?status=${status}` : ''}`)}
                 onFilterByAssignee={(assigneeId) => router.push(`/tasks${assigneeId ? `?assignee=${assigneeId}` : ''}`)}
                 onViewAllTasks={() => router.push('/tasks')}
+                onTaskClick={(task) => setSelectedTaskForDetail(task)}
               />
             </div>
           )}
