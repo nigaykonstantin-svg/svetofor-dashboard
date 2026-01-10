@@ -26,6 +26,8 @@ export function SKUGoalsTable({ skuData, onBulkEdit }: SKUGoalsTableProps) {
     const [filterStatus, setFilterStatus] = useState<'all' | 'exceeds' | 'on_track' | 'at_risk' | 'behind'>('all');
     const [search, setSearch] = useState('');
     const [showBulkModal, setShowBulkModal] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 50;
 
     // Классификация SKU
     const classifications = useMemo(() => classifySKUs(skuData), [skuData]);
@@ -82,6 +84,18 @@ export function SKUGoalsTable({ skuData, onBulkEdit }: SKUGoalsTableProps) {
     const sortedData = useMemo(() => {
         return [...filteredData].sort((a, b) => b.revenue - a.revenue);
     }, [filteredData]);
+
+    // Пагинация
+    const totalPages = Math.ceil(sortedData.length / pageSize);
+    const paginatedData = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return sortedData.slice(start, start + pageSize);
+    }, [sortedData, currentPage, pageSize]);
+
+    // Сброс страницы при изменении фильтров
+    useMemo(() => {
+        setCurrentPage(1);
+    }, [filterClass, filterStatus, search]);
 
     // Обработчики
     const handleSelectAll = () => {
@@ -202,7 +216,7 @@ export function SKUGoalsTable({ skuData, onBulkEdit }: SKUGoalsTableProps) {
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedData.slice(0, 100).map(sku => {
+                        {paginatedData.map(sku => {
                             const statusStyle = GOAL_STATUS_STYLES[sku.status];
 
                             return (
@@ -248,9 +262,44 @@ export function SKUGoalsTable({ skuData, onBulkEdit }: SKUGoalsTableProps) {
                 </table>
             </div>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-slate-700 text-sm text-slate-400">
-                Показано {Math.min(100, sortedData.length)} из {sortedData.length} SKU
+            {/* Footer with Pagination */}
+            <div className="p-4 border-t border-slate-700 flex items-center justify-between">
+                <div className="text-sm text-slate-400">
+                    Показано {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, sortedData.length)} из {sortedData.length} SKU
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-sm"
+                    >
+                        ««
+                    </button>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-sm"
+                    >
+                        ←
+                    </button>
+                    <span className="text-white text-sm px-2">
+                        {currentPage} / {totalPages}
+                    </span>
+                    <button
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-sm"
+                    >
+                        →
+                    </button>
+                    <button
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded text-sm"
+                    >
+                        »»
+                    </button>
+                </div>
             </div>
         </div>
     );

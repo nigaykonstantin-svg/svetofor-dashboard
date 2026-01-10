@@ -29,11 +29,19 @@ export function calculateCategorySales(
 ): number {
     const categoryNames = CATEGORY_MAPPING[categoryId] || [];
 
-    return skuData
-        .filter(sku => categoryNames.some(name =>
-            sku.category?.toLowerCase() === name.toLowerCase()
-        ))
-        .reduce((sum, sku) => sum + (sku.orderSum || 0), 0);
+    const filteredSku = skuData.filter(sku => categoryNames.some(name =>
+        sku.category?.toLowerCase() === name.toLowerCase()
+    ));
+
+    const total = filteredSku.reduce((sum, sku) => sum + (sku.orderSum || 0), 0);
+
+    // Debug logging
+    if (typeof window !== 'undefined' && filteredSku.length > 0) {
+        const topSku = filteredSku.slice(0, 3).map(s => ({ sku: s.sku, orderSum: s.orderSum }));
+        console.log(`[Goals] ${categoryId}: ${filteredSku.length} SKUs, total=${total.toLocaleString()} ₽, top3:`, topSku);
+    }
+
+    return total;
 }
 
 // Calculate progress for a single goal

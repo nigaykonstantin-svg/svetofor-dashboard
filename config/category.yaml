@@ -102,13 +102,9 @@ perfume:
   # Stats: 21 active, 0 gold, 0 super gold
 
 # ══════════════════════════════════════════════════════════
-# Парфюм (4 SKUs, 0 gold)
+# Парфюм (4 SKUs, 0 gold) — объединено с perfume
 # ══════════════════════════════════════════════════════════
-perfume:
-  min_margin_pct: 0.45
-  ctr_benchmark: 2
-  cr_order_low: 2
-  # Stats: 0 active, 0 gold, 0 super gold
+# Removed duplicate key - merged with perfume above
 
 # ══════════════════════════════════════════════════════════
 # Аксессуары (2 SKUs, 0 gold)
