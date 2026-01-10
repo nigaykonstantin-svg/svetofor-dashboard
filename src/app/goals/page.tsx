@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import UserHeader from '@/components/auth/UserHeader';
-import { GoalProgressCard, GoalsManagementModal } from '@/components/goals';
+import { GoalProgressCard, GoalsManagementModal, SKUGoalsTable } from '@/components/goals';
 import { useAuth } from '@/lib/useAuth';
 import { Category, CATEGORY_LABELS, canCreateTasks, canViewAllCategories } from '@/lib/auth-types';
 import {
@@ -34,6 +34,7 @@ export default function GoalsPage() {
     const [error, setError] = useState<string | null>(null);
     const [period, setPeriod] = useState<GoalPeriod>(getCurrentPeriod());
     const [showManageModal, setShowManageModal] = useState(false);
+    const [activeTab, setActiveTab] = useState<'categories' | 'sku'>('categories');
 
     // AbortController ref for canceling in-flight requests
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -298,72 +299,104 @@ export default function GoalsPage() {
                     </div>
                 ) : (
                     <>
-                        {/* Total Company Progress (for admins) */}
-                        {canViewAllCategories(user.role) && goalsProgress.length > 0 && (
-                            <div className={`mb-6 p-4 rounded-xl border ${GOAL_STATUS_COLORS[totalProgress.overallStatus].border} ${GOAL_STATUS_COLORS[totalProgress.overallStatus].bg}`}>
-                                <h2 className="text-lg font-semibold text-white mb-3">
-                                    📊 Общий прогресс компании
-                                </h2>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="text-center">
-                                        <div className="text-slate-400 text-sm mb-1">План</div>
-                                        <div className="text-white font-bold text-xl">
-                                            {formatGoalMoney(totalProgress.totalGoal)}
-                                        </div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-slate-400 text-sm mb-1">Факт</div>
-                                        <div className={`font-bold text-xl ${GOAL_STATUS_COLORS[totalProgress.overallStatus].text}`}>
-                                            {formatGoalMoney(totalProgress.totalActual)}
-                                        </div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-slate-400 text-sm mb-1">Выполнение</div>
-                                        <div className={`font-bold text-xl ${GOAL_STATUS_COLORS[totalProgress.overallStatus].text}`}>
-                                            {totalProgress.totalPercentage.toFixed(1)}%
-                                        </div>
-                                    </div>
-                                </div>
+                        {/* Tabs */}
+                        <div className="flex gap-2 mb-6">
+                            <button
+                                onClick={() => setActiveTab('categories')}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'categories'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                                    }`}
+                            >
+                                📊 По категориям
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('sku')}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'sku'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-slate-800 text-slate-400 hover:text-white'
+                                    }`}
+                            >
+                                🎯 По SKU (Gold/Silver/Bronze)
+                            </button>
+                        </div>
 
-                                {/* Progress bar */}
-                                <div className="mt-4 h-2 bg-slate-700 rounded-full overflow-hidden">
-                                    <div
-                                        className={`h-full transition-all duration-500 ${totalProgress.overallStatus === 'achieved' ? 'bg-green-500' :
-                                            totalProgress.overallStatus === 'on_track' ? 'bg-blue-500' :
-                                                totalProgress.overallStatus === 'at_risk' ? 'bg-yellow-500' : 'bg-red-500'
-                                            }`}
-                                        style={{ width: `${Math.min(100, totalProgress.totalPercentage)}%` }}
-                                    />
-                                </div>
-                            </div>
+                        {/* Tab: Categories */}
+                        {activeTab === 'categories' && (
+                            <>
+                                {/* Total Company Progress (for admins) */}
+                                {canViewAllCategories(user.role) && goalsProgress.length > 0 && (
+                                    <div className={`mb-6 p-4 rounded-xl border ${GOAL_STATUS_COLORS[totalProgress.overallStatus].border} ${GOAL_STATUS_COLORS[totalProgress.overallStatus].bg}`}>
+                                        <h2 className="text-lg font-semibold text-white mb-3">
+                                            📊 Общий прогресс компании
+                                        </h2>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <div className="text-center">
+                                                <div className="text-slate-400 text-sm mb-1">План</div>
+                                                <div className="text-white font-bold text-xl">
+                                                    {formatGoalMoney(totalProgress.totalGoal)}
+                                                </div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-slate-400 text-sm mb-1">Факт</div>
+                                                <div className={`font-bold text-xl ${GOAL_STATUS_COLORS[totalProgress.overallStatus].text}`}>
+                                                    {formatGoalMoney(totalProgress.totalActual)}
+                                                </div>
+                                            </div>
+                                            <div className="text-center">
+                                                <div className="text-slate-400 text-sm mb-1">Выполнение</div>
+                                                <div className={`font-bold text-xl ${GOAL_STATUS_COLORS[totalProgress.overallStatus].text}`}>
+                                                    {totalProgress.totalPercentage.toFixed(1)}%
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Progress bar */}
+                                        <div className="mt-4 h-2 bg-slate-700 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full transition-all duration-500 ${totalProgress.overallStatus === 'achieved' ? 'bg-green-500' :
+                                                    totalProgress.overallStatus === 'on_track' ? 'bg-blue-500' :
+                                                        totalProgress.overallStatus === 'at_risk' ? 'bg-yellow-500' : 'bg-red-500'
+                                                    }`}
+                                                style={{ width: `${Math.min(100, totalProgress.totalPercentage)}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Category Cards */}
+                                {visibleProgress.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {visibleProgress.map(progress => (
+                                            <GoalProgressCard
+                                                key={progress.categoryId}
+                                                progress={progress}
+                                                problematicSKUs={getProblematicSKUs(skuData, progress.categoryId, 3)}
+                                                onViewDetails={() => router.push(`/?category=${progress.categoryId}`)}
+                                                onCreateTask={() => router.push(`/?category=${progress.categoryId}&action=createTask`)}
+                                            />
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12 text-slate-400">
+                                        <div className="text-4xl mb-4">🎯</div>
+                                        <p>Цели на этот период не установлены</p>
+                                        {canCreateTasks(user.role) && (
+                                            <button
+                                                onClick={() => setShowManageModal(true)}
+                                                className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+                                            >
+                                                Установить цели
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </>
                         )}
 
-                        {/* Category Cards */}
-                        {visibleProgress.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {visibleProgress.map(progress => (
-                                    <GoalProgressCard
-                                        key={progress.categoryId}
-                                        progress={progress}
-                                        problematicSKUs={getProblematicSKUs(skuData, progress.categoryId, 3)}
-                                        onViewDetails={() => router.push(`/?category=${progress.categoryId}`)}
-                                        onCreateTask={() => router.push(`/?category=${progress.categoryId}&action=createTask`)}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-center py-12 text-slate-400">
-                                <div className="text-4xl mb-4">🎯</div>
-                                <p>Цели на этот период не установлены</p>
-                                {canCreateTasks(user.role) && (
-                                    <button
-                                        onClick={() => setShowManageModal(true)}
-                                        className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
-                                    >
-                                        Установить цели
-                                    </button>
-                                )}
-                            </div>
+                        {/* Tab: SKU Goals */}
+                        {activeTab === 'sku' && (
+                            <SKUGoalsTable skuData={skuData} />
                         )}
                     </>
                 )}
