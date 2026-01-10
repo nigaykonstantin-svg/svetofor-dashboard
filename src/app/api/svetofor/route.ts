@@ -47,17 +47,23 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const period = parseInt(searchParams.get('period') || '7');
         const validPeriod = Math.min(Math.max(period, 1), 180); // Accept 1-180 days
+
+        // Signal period: minimum 7 days for stable conversion signals
+        // Even if UI shows "Yesterday", signals use 7-day averages
+        const signalPeriod = Math.max(7, validPeriod);
+
         const forceRefresh = searchParams.get('refresh') === 'true';
 
         // Parse skipDRR flag (for pages that don't need advertising data)
         const skipDRR = searchParams.get('skipDRR') === 'true';
 
         // Check cache first (unless force refresh)
-        const cacheKey = cacheKeys.svetofor(validPeriod);
+        // Cache key uses signalPeriod since that determines the data we fetch
+        const cacheKey = cacheKeys.svetofor(signalPeriod);
         if (!forceRefresh) {
             const cached = apiCache.get<{ success: boolean; data: unknown }>(cacheKey);
             if (cached) {
-                console.log(`[Svetofor API] Returning cached data for period ${validPeriod}d`);
+                console.log(`[Svetofor API] Returning cached data for signalPeriod ${signalPeriod}d`);
                 return NextResponse.json({ ...cached, fromCache: true });
             }
         }
@@ -80,15 +86,16 @@ export async function GET(request: Request) {
         const dateFromStr = dateFrom.toISOString().split('T')[0];
 
         // Загружаем данные параллельно
+        // Note: funnelData uses signalPeriod (min 7 days) for stable conversion signals
         const [stocksRaw, funnelData, salesData, drrData, categoryConfigs] = await Promise.all([
             getStocks(),
-            getSalesFunnel(validPeriod).catch(() => []),
+            getSalesFunnel(signalPeriod).catch(() => []), // Use signalPeriod for stable conversion metrics
             getSales(dateFromStr).catch(() => []),
-            skipDRR ? Promise.resolve(new Map()) : getCachedDRR(validPeriod),
+            skipDRR ? Promise.resolve(new Map()) : getCachedDRR(signalPeriod),
             getCategoryConfigs(),
         ]);
 
-        console.log(`Loaded: stocks=${stocksRaw.length}, funnel=${funnelData.length}, sales=${salesData.length}, drr=${drrData.size} SKUs (period=${validPeriod}d)`);
+        console.log(`Loaded: stocks=${stocksRaw.length}, funnel=${funnelData.length} (signalPeriod=${signalPeriod}d), sales=${salesData.length}, drr=${drrData.size} SKUs (requestedPeriod=${validPeriod}d)`);
 
         // Get thresholds for category - prioritizes user settings from localStorage
         const getThresholdsForCategory = (categoryName: string) => {
@@ -297,8 +304,8 @@ export async function GET(request: Request) {
                         type: 'LOW_CTR',
                         priority: 'warning',
                         message: `Низкий CTR: ${funnel.crCart.toFixed(1)}% (порог: ${thresholds.ctr_low}%)`,
-                        impactPerDay: (potentialOrders * price * 0.25) / validPeriod,
-                        impactPerWeek: potentialOrders * price * 0.25 / validPeriod * 7,
+                        impactPerDay: (potentialOrders * price * 0.25) / signalPeriod,
+                        impactPerWeek: potentialOrders * price * 0.25 / signalPeriod * 7,
                         urgency: 'this_week',
                         action: { type: 'update_content', priority: 'this_week', details: 'Обновить главное фото и заголовок' },
                     });
@@ -312,8 +319,8 @@ export async function GET(request: Request) {
                         type: 'LOW_CR',
                         priority: 'warning',
                         message: `Низкий CR заказ: ${funnel.crOrder.toFixed(0)}% (порог: ${thresholds.cr_order_low}%)`,
-                        impactPerDay: (potentialOrders * price) / validPeriod,
-                        impactPerWeek: potentialOrders * price / validPeriod * 7,
+                        impactPerDay: (potentialOrders * price) / signalPeriod,
+                        impactPerWeek: potentialOrders * price / signalPeriod * 7,
                         urgency: 'this_week',
                         action: { type: 'optimize_price', priority: 'this_week', details: 'Проверить цену и описание товара' },
                     });
@@ -326,8 +333,8 @@ export async function GET(request: Request) {
                         type: 'LOW_BUYOUT',
                         priority: 'warning',
                         message: `Низкий выкуп: ${funnel.buyoutPercent.toFixed(0)}%`,
-                        impactPerDay: lostBuyout / validPeriod,
-                        impactPerWeek: lostBuyout / validPeriod * 7,
+                        impactPerDay: lostBuyout / signalPeriod,
+                        impactPerWeek: lostBuyout / signalPeriod * 7,
                         urgency: 'this_week',
                         action: { type: 'update_content', priority: 'this_week', details: 'Улучшить описание, добавить отзывы' },
                     });
@@ -339,8 +346,8 @@ export async function GET(request: Request) {
                         type: 'ABOVE_MARKET',
                         priority: 'success',
                         message: `🔥 Топ: CTR ${funnel.crCart.toFixed(0)}%, CR ${funnel.crOrder.toFixed(0)}%`,
-                        impactPerDay: funnel.orderSum / validPeriod,
-                        impactPerWeek: funnel.orderSum / validPeriod * 7,
+                        impactPerDay: funnel.orderSum / signalPeriod,
+                        impactPerWeek: funnel.orderSum / signalPeriod * 7,
                         urgency: 'this_month',
                         action: { type: 'optimize_price', priority: 'this_week', details: 'Можно поднять цену на 5-10%' },
                     });
@@ -389,8 +396,8 @@ export async function GET(request: Request) {
                         type: 'FALLING_SALES',
                         priority: 'critical',
                         message: `📉 Критичное падение: ${salesDrop.toFixed(0)}% vs прошлый период`,
-                        impactPerDay: lostRevenue / validPeriod,
-                        impactPerWeek: (lostRevenue / validPeriod) * 7,
+                        impactPerDay: lostRevenue / signalPeriod,
+                        impactPerWeek: (lostRevenue / signalPeriod) * 7,
                         urgency: 'today',
                         action: { type: 'review_sku', priority: 'today', details: 'Срочно проанализировать причины падения' },
                     });
@@ -400,8 +407,8 @@ export async function GET(request: Request) {
                         type: 'FALLING_SALES',
                         priority: 'warning',
                         message: `📉 Падение продаж: ${salesDrop.toFixed(0)}% vs прошлый период`,
-                        impactPerDay: lostRevenue / validPeriod,
-                        impactPerWeek: (lostRevenue / validPeriod) * 7,
+                        impactPerDay: lostRevenue / signalPeriod,
+                        impactPerWeek: (lostRevenue / signalPeriod) * 7,
                         urgency: 'this_week',
                         action: { type: 'review_sku', priority: 'this_week', details: 'Проанализировать причины падения продаж' },
                     });
