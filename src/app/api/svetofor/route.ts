@@ -99,6 +99,11 @@ export async function GET(request: Request) {
 
         // Get thresholds for category - prioritizes user settings from localStorage
         const getThresholdsForCategory = (categoryName: string) => {
+            // Get YAML config first to get min_margin_pct
+            const key = CATEGORY_API_MAP[categoryName] || categoryName.toLowerCase();
+            const config = categoryConfigs[key];
+            const minMargin = (config?.min_margin_pct || 0.25) * 100; // Convert to percentage
+
             // First check user thresholds from settings UI
             if (userThresholds[categoryName]) {
                 const ut = userThresholds[categoryName];
@@ -107,17 +112,17 @@ export async function GET(request: Request) {
                     ctr_low: ut.CR_CART_LOW || 4,           // "Низкий CR корзина" - for LOW_CTR
                     cr_order_low: ut.CR_CART_LOW || 4,      // SAME field for LOW_CR (was wrong: CR_ORDER_HIGH)
                     cr_order_high: ut.CR_ORDER_HIGH || 10,  // "Топ CR заказ" - for ABOVE_MARKET
+                    min_margin_pct: minMargin,              // For UNPROFITABLE_ADS
                 };
             }
 
             // Fallback to YAML config
-            const key = CATEGORY_API_MAP[categoryName] || categoryName.toLowerCase();
-            const config = categoryConfigs[key];
             console.log(`[Thresholds] Using YAML config for "${categoryName}" (key: ${key})`);
             return {
                 ctr_low: config?.ctr_benchmark || 4,      // Default 4%
                 cr_order_low: config?.cr_order_low || 4,  // Default 4% for LOW_CR
                 cr_order_high: 10,                        // Default 10% for ABOVE_MARKET
+                min_margin_pct: minMargin,                // For UNPROFITABLE_ADS (default 25%)
             };
         };
 
@@ -364,7 +369,18 @@ export async function GET(request: Request) {
                 advertSpend = skuDrr.advertSpend;
                 const drrValue = skuDrr.drr;
 
-                if (drrValue >= DEFAULT_THRESHOLDS.DRR_CRITICAL) {
+                // UNPROFITABLE_ADS: DRR > margin (most critical)
+                if (drrValue > thresholds.min_margin_pct) {
+                    signals.push({
+                        type: 'UNPROFITABLE_ADS',
+                        priority: 'critical',
+                        message: `💸 Убыточная реклама: ДРР ${drrValue.toFixed(0)}% > маржа ${thresholds.min_margin_pct.toFixed(0)}%`,
+                        impactPerDay: advertSpend ? advertSpend / signalPeriod : 0,
+                        impactPerWeek: advertSpend ? (advertSpend / signalPeriod) * 7 : 0,
+                        urgency: 'today',
+                        action: { type: 'pause_ads', priority: 'today', details: 'Остановить рекламу — она убыточна!' },
+                    });
+                } else if (drrValue >= DEFAULT_THRESHOLDS.DRR_CRITICAL) {
                     signals.push({
                         type: 'HIGH_DRR',
                         priority: 'critical',
@@ -472,6 +488,7 @@ export async function GET(request: Request) {
         const clusters = {
             OOS_NOW: analyses.filter(a => a.signals.some((s: any) => s.type === 'OOS_NOW')),
             OOS_SOON: analyses.filter(a => a.signals.some((s: any) => s.type === 'OOS_SOON')),
+            UNPROFITABLE_ADS: analyses.filter(a => a.signals.some((s: any) => s.type === 'UNPROFITABLE_ADS')),
             HIGH_DRR: analyses.filter(a => a.signals.some((s: any) => s.type === 'HIGH_DRR')),
             FALLING_SALES: analyses.filter(a => a.signals.some((s: any) => s.type === 'FALLING_SALES')),
             LOW_CTR: analyses.filter(a => a.signals.some((s: any) => s.type === 'LOW_CTR')),
@@ -542,6 +559,7 @@ export async function GET(request: Request) {
             clusters: {
                 OOS_NOW: clusters.OOS_NOW.length,
                 OOS_SOON: clusters.OOS_SOON.length,
+                UNPROFITABLE_ADS: clusters.UNPROFITABLE_ADS.length,
                 HIGH_DRR: clusters.HIGH_DRR.length,
                 FALLING_SALES: clusters.FALLING_SALES.length,
                 LOW_CTR: clusters.LOW_CTR.length,

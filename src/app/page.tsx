@@ -402,6 +402,7 @@ export default function SvetoforDashboard() {
     const counts = {
       OOS_NOW: 0,
       HIGH_DRR: 0,
+      UNPROFITABLE_ADS: 0,
       OOS_SOON: 0,
       LOW_CTR: 0,
       LOW_CR: 0,
@@ -489,6 +490,7 @@ export default function SvetoforDashboard() {
     OOS_NOW: data.data.OOS_NOW?.length,
     OOS_SOON: data.data.OOS_SOON?.length,
     LOW_CTR: data.data.LOW_CTR?.length,
+    UNPROFITABLE_ADS: data.data.UNPROFITABLE_ADS?.length,
     HIGH_DRR: data.data.HIGH_DRR?.length,
     OVERSTOCK: data.data.OVERSTOCK?.length,
   } : undefined, [data]);

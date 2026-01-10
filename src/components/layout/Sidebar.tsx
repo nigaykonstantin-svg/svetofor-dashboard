@@ -11,6 +11,7 @@ interface SidebarProps {
         OOS_SOON?: number;
         LOW_CTR?: number;
         LOW_CR?: number;
+        UNPROFITABLE_ADS?: number;
         HIGH_DRR?: number;
         OVERSTOCK?: number;
     };
@@ -29,6 +30,7 @@ const SIGNAL_ITEMS = [
     { id: 'OOS_SOON', label: 'Скоро закончится', icon: '🟠', color: 'text-orange-400' },
     { id: 'LOW_CTR', label: 'Низкий CTR', icon: '🟡', color: 'text-yellow-400' },
     { id: 'LOW_CR', label: 'Низкая конверсия', icon: '🟡', color: 'text-yellow-400' },
+    { id: 'UNPROFITABLE_ADS', label: 'Убыточная реклама', icon: '💸', color: 'text-red-500' },
     { id: 'HIGH_DRR', label: 'Высокий ДРР', icon: '💸', color: 'text-pink-400' },
     { id: 'OVERSTOCK', label: 'Затоварка', icon: '📦', color: 'text-blue-400' },
 ];
