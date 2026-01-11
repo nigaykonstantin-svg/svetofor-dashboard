@@ -86,16 +86,16 @@ export async function GET(request: Request) {
         const dateFromStr = dateFrom.toISOString().split('T')[0];
 
         // Загружаем данные параллельно
-        // Note: funnelData uses signalPeriod (min 7 days) for stable conversion signals
+        // IMPORTANT: Use validPeriod for funnel to get correct KPI totals for selected period
         const [stocksRaw, funnelData, salesData, drrData, categoryConfigs] = await Promise.all([
             getStocks(),
-            getSalesFunnel(signalPeriod).catch(() => []), // Use signalPeriod for stable conversion metrics
+            getSalesFunnel(validPeriod).catch(() => []), // Use validPeriod for accurate KPI totals
             getSales(dateFromStr).catch(() => []),
-            skipDRR ? Promise.resolve(new Map()) : getCachedDRR(signalPeriod),
+            skipDRR ? Promise.resolve(new Map()) : getCachedDRR(validPeriod),
             getCategoryConfigs(),
         ]);
 
-        console.log(`Loaded: stocks=${stocksRaw.length}, funnel=${funnelData.length} (signalPeriod=${signalPeriod}d), sales=${salesData.length}, drr=${drrData.size} SKUs (requestedPeriod=${validPeriod}d)`);
+        console.log(`Loaded: stocks=${stocksRaw.length}, funnel=${funnelData.length}, sales=${salesData.length}, drr=${drrData.size} SKUs (period=${validPeriod}d)`);
 
         // Get thresholds for category - prioritizes user settings from localStorage
         const getThresholdsForCategory = (categoryName: string) => {
