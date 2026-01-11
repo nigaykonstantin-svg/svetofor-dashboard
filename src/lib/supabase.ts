@@ -141,20 +141,37 @@ export async function getPowerBIAnalyticsForPeriod(
     const client = getSupabase();
     if (!client) return [];
 
-    // Fetch raw data from powerbi_analytics
-    const { data, error } = await client
-        .from('powerbi_analytics')
-        .select('date, orders_qty, revenue_with_vat, clicks, add_to_cart, ctr, cr_cart, cr_order, commercial_profit, profit_margin_pct, current_stock')
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date', { ascending: true });
+    // Fetch ALL data with pagination (Supabase has 1000 row default limit)
+    const allData: any[] = [];
+    const BATCH_SIZE = 1000;
+    let offset = 0;
+    let hasMore = true;
 
-    if (error) {
-        console.error('Error fetching PowerBI analytics:', error);
-        return [];
+    while (hasMore) {
+        const { data, error } = await client
+            .from('powerbi_analytics')
+            .select('date, orders_qty, revenue_with_vat, clicks, add_to_cart, ctr, cr_cart, cr_order, commercial_profit, profit_margin_pct, current_stock')
+            .gte('date', startDate)
+            .lte('date', endDate)
+            .order('date', { ascending: true })
+            .range(offset, offset + BATCH_SIZE - 1);
+
+        if (error) {
+            console.error('Error fetching PowerBI analytics:', error);
+            break;
+        }
+
+        if (!data || data.length === 0) {
+            hasMore = false;
+        } else {
+            allData.push(...data);
+            offset += BATCH_SIZE;
+            hasMore = data.length === BATCH_SIZE;
+        }
     }
 
-    if (!data || data.length === 0) return [];
+    if (allData.length === 0) return [];
+
 
     // Aggregate by date
     const dailyMap = new Map<string, {
@@ -171,7 +188,7 @@ export async function getPowerBIAnalyticsForPeriod(
         skuCount: number;
     }>();
 
-    for (const row of data) {
+    for (const row of allData) {
         const date = row.date;
         if (!dailyMap.has(date)) {
             dailyMap.set(date, {

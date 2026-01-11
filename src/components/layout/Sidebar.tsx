@@ -2,6 +2,7 @@
 
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { useAuth } from '@/lib/useAuth';
 
 interface SidebarProps {
     isCollapsed: boolean;
@@ -20,9 +21,12 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS = [
-    { id: 'dashboard', label: 'Дашборд', icon: '📊', path: '/' },
-    { id: 'tasks', label: 'Задачи', icon: '📋', path: '/tasks' },
-    { id: 'goals', label: 'Цели', icon: '🎯', path: '/goals' },
+    { id: 'dashboard', label: 'Дашборд', icon: '📊', path: '/', adminOnly: false },
+    { id: 'tasks', label: 'Задачи', icon: '📋', path: '/tasks', adminOnly: false },
+    { id: 'goals', label: 'Цели', icon: '🎯', path: '/goals', adminOnly: false },
+    { id: 'seo', label: 'SEO', icon: '🔍', path: '/seo', adminOnly: false },
+    { id: 'org-structure', label: 'Орг. структура', icon: '🏢', path: '/org-structure', adminOnly: true },
+    { id: 'goals-45b', label: 'Цели 45 млрд.', icon: '💰', path: '/goals-45b', adminOnly: true },
 ];
 
 const SIGNAL_ITEMS = [
@@ -44,6 +48,10 @@ export default function Sidebar({
 }: SidebarProps) {
     const router = useRouter();
     const pathname = usePathname();
+    const { isSuperAdmin } = useAuth();
+
+    // Filter nav items based on user role
+    const visibleNavItems = NAV_ITEMS.filter(item => !item.adminOnly || isSuperAdmin);
 
     return (
         <aside
@@ -75,7 +83,7 @@ export default function Sidebar({
 
             {/* Navigation */}
             <nav className="p-3 space-y-1">
-                {NAV_ITEMS.map((item) => {
+                {visibleNavItems.map((item) => {
                     const isActive = pathname === item.path;
                     return (
                         <button

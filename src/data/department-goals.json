@@ -1,0 +1,300 @@
+{
+  "companyTarget": 45000000000,
+  "goals": [
+    {
+      "id": "goal_it_1",
+      "departmentId": "dept_3",
+      "title": "Автоматизация 80% рутинных процессов",
+      "description": "Внедрение AI-решений для автоматизации операционных задач",
+      "type": "quantitative",
+      "metric": {
+        "target": 80,
+        "current": 35,
+        "unit": "percent"
+      },
+      "weight": 15,
+      "status": "in_progress",
+      "deadline": "2026-12-31",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_it_2",
+      "departmentId": "dept_3",
+      "title": "Запуск платформы Profit Optimizer",
+      "description": "Полноценный запуск и интеграция со всеми каналами продаж",
+      "type": "qualitative",
+      "weight": 20,
+      "status": "in_progress",
+      "deadline": "2026-03-31",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_it_3",
+      "departmentId": "dept_3",
+      "title": "Снижение времени простоя систем",
+      "description": "Обеспечить uptime 99.9% для критических систем",
+      "type": "quantitative",
+      "metric": {
+        "target": 99.9,
+        "current": 98.5,
+        "unit": "percent"
+      },
+      "weight": 10,
+      "status": "in_progress",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_marketing_1",
+      "departmentId": "dept_2",
+      "title": "Рост узнаваемости бренда на 25%",
+      "description": "Увеличение brand awareness через digital-каналы",
+      "type": "quantitative",
+      "metric": {
+        "target": 25,
+        "current": 8,
+        "unit": "percent"
+      },
+      "weight": 15,
+      "status": "in_progress",
+      "deadline": "2026-12-31",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_marketing_2",
+      "departmentId": "dept_2",
+      "title": "Запуск 12 рекламных кампаний",
+      "description": "По одной крупной кампании в месяц",
+      "type": "quantitative",
+      "metric": {
+        "target": 12,
+        "current": 1,
+        "unit": "units"
+      },
+      "weight": 10,
+      "status": "in_progress",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_marketing_3",
+      "departmentId": "dept_2",
+      "title": "Увеличение конверсии из соцсетей",
+      "description": "Рост CR с SMM-каналов на 40%",
+      "type": "quantitative",
+      "metric": {
+        "target": 40,
+        "current": 12,
+        "unit": "percent"
+      },
+      "weight": 12,
+      "status": "in_progress",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_finance_1",
+      "departmentId": "dept_8",
+      "title": "Сокращение дебиторской задолженности",
+      "description": "Снижение просроченной ДЗ на 30%",
+      "type": "quantitative",
+      "metric": {
+        "target": 30,
+        "current": 10,
+        "unit": "percent"
+      },
+      "weight": 10,
+      "status": "in_progress",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_finance_2",
+      "departmentId": "dept_8",
+      "title": "Автоматизация отчётности",
+      "description": "Внедрение автоматической генерации финансовых отчётов",
+      "type": "qualitative",
+      "weight": 8,
+      "status": "not_started",
+      "deadline": "2026-06-30",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_finance_3",
+      "departmentId": "dept_8",
+      "title": "Бюджетирование на 2027",
+      "description": "Подготовка детального годового бюджета",
+      "type": "qualitative",
+      "weight": 5,
+      "status": "not_started",
+      "deadline": "2026-11-30",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_offline_1",
+      "departmentId": "dept_6",
+      "title": "Выручка оффлайн-канала 8 млрд",
+      "description": "Достижение целевой выручки по оффлайн продажам",
+      "type": "quantitative",
+      "metric": {
+        "target": 8000000000,
+        "current": 650000000,
+        "unit": "rub"
+      },
+      "weight": 25,
+      "status": "in_progress",
+      "deadline": "2026-12-31",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_offline_2",
+      "departmentId": "dept_6",
+      "title": "Новые партнёрства с сетями",
+      "description": "Заключение договоров с 5 новыми крупными сетями",
+      "type": "quantitative",
+      "metric": {
+        "target": 5,
+        "current": 1,
+        "unit": "units"
+      },
+      "weight": 15,
+      "status": "in_progress",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_offline_3",
+      "departmentId": "dept_6",
+      "title": "Расширение присутствия в аптеках",
+      "description": "Вход в 200 новых аптечных точек",
+      "type": "quantitative",
+      "metric": {
+        "target": 200,
+        "current": 45,
+        "unit": "units"
+      },
+      "weight": 10,
+      "status": "in_progress",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_wb_1",
+      "departmentId": "dept_15",
+      "title": "Выручка Wildberries 18 млрд",
+      "description": "Достижение целевой выручки на WB как ключевом маркетплейсе",
+      "type": "quantitative",
+      "metric": {
+        "target": 18000000000,
+        "current": 1450000000,
+        "unit": "rub"
+      },
+      "weight": 35,
+      "status": "in_progress",
+      "deadline": "2026-12-31",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_wb_2",
+      "departmentId": "dept_15",
+      "title": "Увеличение конверсии в корзину на 15%",
+      "description": "Рост CR через улучшение карточек товаров и визуала",
+      "type": "quantitative",
+      "metric": {
+        "target": 15,
+        "current": 4,
+        "unit": "percent"
+      },
+      "weight": 15,
+      "status": "in_progress",
+      "deadline": "2026-06-30",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_wb_3",
+      "departmentId": "dept_15",
+      "title": "Снижение ДРР до 10%",
+      "description": "Оптимизация рекламных расходов на WB",
+      "type": "quantitative",
+      "metric": {
+        "target": 10,
+        "current": 18,
+        "unit": "percent"
+      },
+      "weight": 12,
+      "status": "in_progress",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_ozon_1",
+      "departmentId": "dept_19",
+      "title": "Выручка OZON 8 млрд",
+      "description": "Рост выручки на втором ключевом маркетплейсе",
+      "type": "quantitative",
+      "metric": {
+        "target": 8000000000,
+        "current": 580000000,
+        "unit": "rub"
+      },
+      "weight": 25,
+      "status": "in_progress",
+      "deadline": "2026-12-31",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_ozon_2",
+      "departmentId": "dept_19",
+      "title": "Расширение ассортимента на 200 SKU",
+      "description": "Добавление новых позиций на OZON",
+      "type": "quantitative",
+      "metric": {
+        "target": 200,
+        "current": 45,
+        "unit": "units"
+      },
+      "weight": 10,
+      "status": "in_progress",
+      "deadline": "2026-09-30",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_ozon_3",
+      "departmentId": "dept_19",
+      "title": "Вывод в ТОП-10 по категории косметика",
+      "description": "Достижение позиции в топ-10 продавцов категории",
+      "type": "qualitative",
+      "weight": 15,
+      "status": "in_progress",
+      "deadline": "2026-12-31",
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-11T00:00:00Z"
+    },
+    {
+      "id": "goal_1768169460603",
+      "departmentId": "dept_13",
+      "title": "test",
+      "description": "",
+      "type": "quantitative",
+      "status": "not_started",
+      "weight": 10,
+      "createdAt": "2026-01-11T22:11:00.623Z",
+      "updatedAt": "2026-01-11T22:11:00.623Z",
+      "metric": {
+        "target": 0,
+        "current": 0,
+        "unit": "percent"
+      }
+    }
+  ]
+}

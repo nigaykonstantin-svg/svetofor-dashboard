@@ -1,5 +1,5 @@
 // User roles
-export type UserRole = 'super_admin' | 'category_manager' | 'manager' | 'pending';
+export type UserRole = 'super_admin' | 'marketplace_admin' | 'category_manager' | 'manager' | 'pending';
 
 // Product categories
 export type Category = 'face' | 'body' | 'makeup' | 'hair';
@@ -49,6 +49,14 @@ export const PERMISSIONS = {
         canManageUsers: true,
         canViewAnalytics: true,
     },
+    marketplace_admin: {
+        canViewAllTasks: true,
+        canViewAllCategories: true,
+        canCreateTasks: true,
+        canAssignToAnyManager: true,
+        canManageUsers: true, // Can manage users
+        canViewAnalytics: true,
+    },
     category_manager: {
         canViewAllTasks: false, // Only their category
         canViewAllCategories: false,
@@ -85,12 +93,13 @@ export function canViewAllCategories(role: UserRole): boolean {
 }
 
 export function canManageUsers(role: UserRole): boolean {
-    return role === 'super_admin';
+    return role === 'super_admin' || role === 'marketplace_admin';
 }
 
 export function getRoleLabel(role: UserRole): string {
     const labels: Record<UserRole, string> = {
         super_admin: '👑 Супер-админ',
+        marketplace_admin: '🏪 Администратор маркетплейса',
         category_manager: '👨‍💼 Категорийный менеджер',
         manager: '👤 Менеджер',
         pending: '⏳ Ожидает подтверждения',
@@ -101,6 +110,7 @@ export function getRoleLabel(role: UserRole): string {
 export function getRoleBadgeColor(role: UserRole): string {
     const colors: Record<UserRole, string> = {
         super_admin: 'bg-amber-500',
+        marketplace_admin: 'bg-emerald-500',
         category_manager: 'bg-blue-500',
         manager: 'bg-slate-500',
         pending: 'bg-gray-500',

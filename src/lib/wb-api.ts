@@ -3,6 +3,7 @@ const WB_API_TOKEN = process.env.WB_API_TOKEN;
 
 const STATISTICS_API = 'https://statistics-api.wildberries.ru';
 const ANALYTICS_API = 'https://seller-analytics-api.wildberries.ru';
+const CONTENT_API = 'https://content-api.wildberries.ru';
 
 export interface WBStock {
     supplierArticle: string;
@@ -163,3 +164,123 @@ export async function getOrders(dateFrom: string): Promise<any[]> {
     return response.json();
 }
 
+// ============ CONTENT API ============
+
+export interface WBCardPhoto {
+    big: string;
+    c246x328: string;
+    c516x688: string;
+    square: string;
+    tm: string;
+}
+
+export interface WBCardCharacteristic {
+    id: number;
+    name: string;
+    value: string[] | string;
+}
+
+export interface WBCard {
+    nmID: number;
+    imtID: number;
+    vendorCode: string;
+    subjectID: number;
+    subjectName: string;
+    brand: string;
+    title: string;
+    description: string;
+    photos: WBCardPhoto[];
+    video: string;
+    characteristics: WBCardCharacteristic[];
+    sizes: Array<{
+        techSize: string;
+        skus: string[];
+        price: number;
+        discountedPrice: number;
+    }>;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface WBCardsResponse {
+    cards: WBCard[];
+    cursor: {
+        updatedAt: string;
+        nmID: number;
+        total: number;
+    };
+}
+
+/**
+ * Get full card details from WB Content API
+ * Returns photos, video, description, characteristics
+ */
+export async function getCardsList(limit: number = 100, cursor?: { updatedAt?: string; nmID?: number }): Promise<WBCardsResponse> {
+    const body: any = {
+        settings: {
+            cursor: {
+                limit,
+            },
+            filter: {
+                withPhoto: -1, // All cards
+            },
+        },
+    };
+
+    if (cursor?.updatedAt && cursor?.nmID) {
+        body.settings.cursor.updatedAt = cursor.updatedAt;
+        body.settings.cursor.nmID = cursor.nmID;
+    }
+
+    const response = await fetch(
+        `${CONTENT_API}/content/v2/get/cards/list`,
+        {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${WB_API_TOKEN}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        }
+    );
+
+    if (!response.ok) {
+        const error = await response.text();
+        console.error(`Content API Error: ${response.status} - ${error}`);
+        throw new Error(`WB Content API Error: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json();
+    console.log(`Content API returned ${data.cards?.length || 0} cards`);
+    return data;
+}
+
+/**
+ * Get all cards with pagination
+ */
+export async function getAllCards(maxCards: number = 1000): Promise<WBCard[]> {
+    const allCards: WBCard[] = [];
+    let cursor: { updatedAt?: string; nmID?: number } | undefined;
+
+    while (allCards.length < maxCards) {
+        const batchSize = Math.min(100, maxCards - allCards.length);
+        const response = await getCardsList(batchSize, cursor);
+
+        if (!response.cards || response.cards.length === 0) break;
+
+        allCards.push(...response.cards);
+
+        // Update cursor for next batch
+        if (response.cursor && response.cards.length === batchSize) {
+            cursor = {
+                updatedAt: response.cursor.updatedAt,
+                nmID: response.cursor.nmID,
+            };
+        } else {
+            break;
+        }
+    }
+
+    console.log(`Content API: Fetched total ${allCards.length} cards`);
+    return allCards;
+}

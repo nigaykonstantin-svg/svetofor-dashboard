@@ -45,7 +45,24 @@ export const authOptions: NextAuthOptions = {
             async authorize(credentials) {
                 if (!credentials?.email) return null;
 
-                // Find user in mock data
+                // Try Supabase users first
+                try {
+                    const { getUserByEmailFromDB, updateLastLogin } = await import('@/lib/supabase-users');
+                    const dbUser = await getUserByEmailFromDB(credentials.email);
+
+                    if (dbUser) {
+                        await updateLastLogin(credentials.email);
+                        return {
+                            id: dbUser.id,
+                            email: dbUser.email,
+                            name: dbUser.name,
+                        };
+                    }
+                } catch (error) {
+                    console.log('Supabase users not available, falling back to mock data');
+                }
+
+                // Fallback to mock data
                 const user = getUserByEmail(credentials.email);
                 if (user) {
                     return {
@@ -70,7 +87,23 @@ export const authOptions: NextAuthOptions = {
         async jwt({ token, user, account }) {
             if (user) {
                 // First sign in - look up user in our database
-                const dbUser = getUserByEmail(user.email || '');
+                let dbUser = null;
+
+                // Try Supabase first
+                try {
+                    const { getUserByEmailFromDB, toAppUser } = await import('@/lib/supabase-users');
+                    const supabaseUser = await getUserByEmailFromDB(user.email || '');
+                    if (supabaseUser) {
+                        dbUser = toAppUser(supabaseUser);
+                    }
+                } catch (error) {
+                    console.log('Supabase not available, using mock data');
+                }
+
+                // Fallback to mock data
+                if (!dbUser) {
+                    dbUser = getUserByEmail(user.email || '');
+                }
 
                 if (dbUser) {
                     token.id = dbUser.id;
