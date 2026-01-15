@@ -30,6 +30,28 @@ export interface PlatformUser {
     created_by: string | null;
     is_active: boolean;
     last_login: string | null;
+    password_hash?: string;
+}
+
+// Verify user password
+export async function verifyPassword(email: string, password: string): Promise<boolean> {
+    const client = getSupabase();
+    if (!client) return false;
+
+    const { data, error } = await client
+        .from('platform_users')
+        .select('password_hash')
+        .eq('email', email.toLowerCase())
+        .eq('is_active', true)
+        .single();
+
+    if (error || !data) {
+        return false;
+    }
+
+    // Simple password comparison (passwords stored in plain text for now)
+    // In production, use bcrypt hashing
+    return data.password_hash === password;
 }
 
 // Convert DB user to app User type

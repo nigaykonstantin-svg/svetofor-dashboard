@@ -23,6 +23,7 @@ export interface SKUMatrix {
 
 // Cache the lookup map
 let nmIdMap: Map<number, SKUMatrixItem> | null = null;
+let skuCodeMap: Map<string, SKUMatrixItem> | null = null;
 
 export function getSkuMatrix(): SKUMatrix {
     return skuMatrixData as SKUMatrix;
@@ -36,6 +37,16 @@ export function getSKUByNmId(nmId: number): SKUMatrixItem | undefined {
         }
     }
     return nmIdMap.get(nmId);
+}
+
+export function getSKUByCode(code: string): SKUMatrixItem | undefined {
+    if (!skuCodeMap) {
+        skuCodeMap = new Map();
+        for (const sku of skuMatrixData.skus) {
+            skuCodeMap.set(sku.sku, sku);
+        }
+    }
+    return skuCodeMap.get(code);
 }
 
 // Get all SKUs as array

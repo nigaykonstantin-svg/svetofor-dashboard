@@ -163,12 +163,12 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const category = searchParams.get('category');
         const manager = searchParams.get('manager');
-        const limit = parseInt(searchParams.get('limit') || '200');
+        const limit = parseInt(searchParams.get('limit') || '1000');
 
         console.log(`[SEO API] Fetching card data from WB Content API...`);
 
-        // Fetch REAL card data from WB Content API
-        const cards = await getAllCards(Math.min(limit * 2, 1000));
+        // Fetch REAL card data from WB Content API (all available cards)
+        const cards = await getAllCards(2000);
 
         console.log(`[SEO API] Loaded ${cards.length} cards from Content API`);
 

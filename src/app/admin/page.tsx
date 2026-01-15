@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { canManageUsers, getRoleLabel, getRoleBadgeColor, CATEGORY_LABELS, Category, UserRole } from '@/lib/auth-types';
 import UserHeader from '@/components/auth/UserHeader';
+import ModulePermissionsEditor from '@/components/admin/ModulePermissionsEditor';
 
 interface PlatformUser {
     id: string;
@@ -44,6 +45,7 @@ export default function AdminPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterRole, setFilterRole] = useState<string>('all');
     const [showInactive, setShowInactive] = useState(false);
+    const [activeTab, setActiveTab] = useState<'users' | 'modules'>('users');
 
     // Form state
     const [formData, setFormData] = useState({
@@ -213,136 +215,168 @@ export default function AdminPage() {
                     </div>
                 )}
 
-                {/* Toolbar */}
-                <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-white/10 p-4 mb-6">
-                    <div className="flex flex-wrap items-center gap-4">
-                        {/* Search */}
-                        <input
-                            type="text"
-                            placeholder="Поиск по имени или email..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="flex-1 min-w-[200px] px-4 py-2 bg-slate-700/50 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        />
-
-                        {/* Role filter */}
-                        <select
-                            value={filterRole}
-                            onChange={(e) => setFilterRole(e.target.value)}
-                            className="px-4 py-2 bg-slate-700/50 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
-                        >
-                            <option value="all">Все роли</option>
-                            {ROLE_OPTIONS.map(r => (
-                                <option key={r.value} value={r.value}>{r.label}</option>
-                            ))}
-                        </select>
-
-                        {/* Show inactive toggle */}
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={showInactive}
-                                onChange={(e) => setShowInactive(e.target.checked)}
-                                className="w-4 h-4 rounded accent-pink-500"
-                            />
-                            <span className="text-sm text-slate-400">Показать неактивных</span>
-                        </label>
-
-                        {/* Add user button */}
-                        <button
-                            onClick={() => setShowAddModal(true)}
-                            className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-500 rounded-lg hover:opacity-90 transition-opacity font-medium"
-                        >
-                            + Добавить пользователя
-                        </button>
-                    </div>
+                {/* Tabs */}
+                <div className="flex gap-2 mb-6">
+                    <button
+                        onClick={() => setActiveTab('users')}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'users'
+                                ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white'
+                                : 'bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700/50'
+                            }`}
+                    >
+                        👥 Пользователи
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('modules')}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all ${activeTab === 'modules'
+                                ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white'
+                                : 'bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700/50'
+                            }`}
+                    >
+                        🔐 Доступ к модулям
+                    </button>
                 </div>
 
-                {/* Users Table */}
-                <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-slate-700/50">
-                                <tr>
-                                    <th className="text-left px-4 py-3 font-medium text-slate-400">Имя</th>
-                                    <th className="text-left px-4 py-3 font-medium text-slate-400">Email</th>
-                                    <th className="text-left px-4 py-3 font-medium text-slate-400">Роль</th>
-                                    <th className="text-left px-4 py-3 font-medium text-slate-400">Категория</th>
-                                    <th className="text-left px-4 py-3 font-medium text-slate-400">Статус</th>
-                                    <th className="text-left px-4 py-3 font-medium text-slate-400">Действия</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredUsers.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} className="text-center py-8 text-slate-400">
-                                            Пользователи не найдены
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    filteredUsers.map(user => (
-                                        <tr key={user.id} className={`border-t border-white/5 ${!user.is_active ? 'opacity-50' : ''}`}>
-                                            <td className="px-4 py-3 font-medium">{user.name}</td>
-                                            <td className="px-4 py-3 text-slate-400">{user.email}</td>
-                                            <td className="px-4 py-3">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)} text-white`}>
-                                                    {getRoleLabel(user.role)}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {user.category_id ? CATEGORY_LABELS[user.category_id] : '—'}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs ${user.is_active ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-                                                    {user.is_active ? 'Активен' : 'Неактивен'}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        onClick={() => openEditModal(user)}
-                                                        className="px-3 py-1 text-sm bg-blue-500/20 text-blue-300 rounded hover:bg-blue-500/30 transition-colors"
-                                                    >
-                                                        ✏️ Редактировать
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleToggleActive(user)}
-                                                        className={`px-3 py-1 text-sm rounded transition-colors ${user.is_active
-                                                                ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
-                                                                : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
-                                                            }`}
-                                                    >
-                                                        {user.is_active ? '🚫 Деактивировать' : '✅ Активировать'}
-                                                    </button>
-                                                </div>
-                                            </td>
+                {activeTab === 'users' ? (
+                    <>
+
+                        {/* Toolbar */}
+                        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-white/10 p-4 mb-6">
+                            <div className="flex flex-wrap items-center gap-4">
+                                {/* Search */}
+                                <input
+                                    type="text"
+                                    placeholder="Поиск по имени или email..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="flex-1 min-w-[200px] px-4 py-2 bg-slate-700/50 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                                />
+
+                                {/* Role filter */}
+                                <select
+                                    value={filterRole}
+                                    onChange={(e) => setFilterRole(e.target.value)}
+                                    className="px-4 py-2 bg-slate-700/50 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                                >
+                                    <option value="all">Все роли</option>
+                                    {ROLE_OPTIONS.map(r => (
+                                        <option key={r.value} value={r.value}>{r.label}</option>
+                                    ))}
+                                </select>
+
+                                {/* Show inactive toggle */}
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={showInactive}
+                                        onChange={(e) => setShowInactive(e.target.checked)}
+                                        className="w-4 h-4 rounded accent-pink-500"
+                                    />
+                                    <span className="text-sm text-slate-400">Показать неактивных</span>
+                                </label>
+
+                                {/* Add user button */}
+                                <button
+                                    onClick={() => setShowAddModal(true)}
+                                    className="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-500 rounded-lg hover:opacity-90 transition-opacity font-medium"
+                                >
+                                    + Добавить пользователя
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Users Table */}
+                        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-slate-700/50">
+                                        <tr>
+                                            <th className="text-left px-4 py-3 font-medium text-slate-400">Имя</th>
+                                            <th className="text-left px-4 py-3 font-medium text-slate-400">Email</th>
+                                            <th className="text-left px-4 py-3 font-medium text-slate-400">Роль</th>
+                                            <th className="text-left px-4 py-3 font-medium text-slate-400">Категория</th>
+                                            <th className="text-left px-4 py-3 font-medium text-slate-400">Статус</th>
+                                            <th className="text-left px-4 py-3 font-medium text-slate-400">Действия</th>
                                         </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                                    </thead>
+                                    <tbody>
+                                        {filteredUsers.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="text-center py-8 text-slate-400">
+                                                    Пользователи не найдены
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredUsers.map(user => (
+                                                <tr key={user.id} className={`border-t border-white/5 ${!user.is_active ? 'opacity-50' : ''}`}>
+                                                    <td className="px-4 py-3 font-medium">{user.name}</td>
+                                                    <td className="px-4 py-3 text-slate-400">{user.email}</td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)} text-white`}>
+                                                            {getRoleLabel(user.role)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {user.category_id ? CATEGORY_LABELS[user.category_id] : '—'}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs ${user.is_active ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
+                                                            {user.is_active ? 'Активен' : 'Неактивен'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => openEditModal(user)}
+                                                                className="px-3 py-1 text-sm bg-blue-500/20 text-blue-300 rounded hover:bg-blue-500/30 transition-colors"
+                                                            >
+                                                                ✏️ Редактировать
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleToggleActive(user)}
+                                                                className={`px-3 py-1 text-sm rounded transition-colors ${user.is_active
+                                                                    ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                                                                    : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                                                                    }`}
+                                                            >
+                                                                {user.is_active ? '🚫 Деактивировать' : '✅ Активировать'}
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
 
-                {/* Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                    <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-white/10 p-4">
-                        <div className="text-2xl font-bold">{users.length}</div>
-                        <div className="text-slate-400 text-sm">Всего пользователей</div>
-                    </div>
-                    <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-white/10 p-4">
-                        <div className="text-2xl font-bold">{users.filter(u => u.is_active).length}</div>
-                        <div className="text-slate-400 text-sm">Активных</div>
-                    </div>
-                    <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-white/10 p-4">
-                        <div className="text-2xl font-bold">{users.filter(u => u.role === 'pending').length}</div>
-                        <div className="text-slate-400 text-sm">Ожидают подтверждения</div>
-                    </div>
-                    <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-white/10 p-4">
-                        <div className="text-2xl font-bold">{users.filter(u => u.role === 'super_admin' || u.role === 'marketplace_admin').length}</div>
-                        <div className="text-slate-400 text-sm">Администраторов</div>
-                    </div>
-                </div>
+                        {/* Stats */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                            <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-white/10 p-4">
+                                <div className="text-2xl font-bold">{users.length}</div>
+                                <div className="text-slate-400 text-sm">Всего пользователей</div>
+                            </div>
+                            <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-white/10 p-4">
+                                <div className="text-2xl font-bold">{users.filter(u => u.is_active).length}</div>
+                                <div className="text-slate-400 text-sm">Активных</div>
+                            </div>
+                            <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-white/10 p-4">
+                                <div className="text-2xl font-bold">{users.filter(u => u.role === 'pending').length}</div>
+                                <div className="text-slate-400 text-sm">Ожидают подтверждения</div>
+                            </div>
+                            <div className="bg-slate-800/50 backdrop-blur-xl rounded-xl border border-white/10 p-4">
+                                <div className="text-2xl font-bold">{users.filter(u => u.role === 'super_admin' || u.role === 'marketplace_admin').length}</div>
+                                <div className="text-slate-400 text-sm">Администраторов</div>
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <ModulePermissionsEditor
+                        users={users.map(u => ({ id: u.id, email: u.email, name: u.name, role: u.role }))}
+                        currentUserRole={session.user.role}
+                    />
+                )}
             </main>
 
             {/* Add/Edit Modal */}

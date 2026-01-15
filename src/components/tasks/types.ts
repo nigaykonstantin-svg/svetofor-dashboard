@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 // Task type labels
 export const TASK_TYPES: Record<string, string> = {
     optimize: '🎯 Оптимизировать карточку',
+    seo: '🔍 SEO оптимизация',
     price_down: '📉 Снизить цену',
     price_up: '📈 Повысить цену',
     restock: '📦 Заказать поставку',
