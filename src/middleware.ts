@@ -13,7 +13,8 @@ export default withAuth(
                 if (
                     req.nextUrl.pathname.startsWith('/login') ||
                     req.nextUrl.pathname.startsWith('/api/auth') ||
-                    req.nextUrl.pathname.startsWith('/api/sync-analytics')
+                    req.nextUrl.pathname.startsWith('/api/sync-analytics') ||
+                    req.nextUrl.pathname.startsWith('/api/public-users')
                 ) {
                     return true;
                 }
