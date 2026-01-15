@@ -19,7 +19,7 @@ export default function LoginPage() {
 
     // Fetch users from public API for dropdown
     useEffect(() => {
-        fetch('/api/auth/users')
+        fetch('/api/public-users')
             .then(res => res.json())
             .then(data => {
                 if (data.users) {
